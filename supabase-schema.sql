@@ -91,8 +91,34 @@ INSERT INTO properties (
 ON CONFLICT (property_id) DO NOTHING;
 
 -- =============================================
+-- 온라인 등기 열람 이력 테이블 (registry_views)
+-- 이미 열람한 주소 캐시 용도
+-- =============================================
+CREATE TABLE IF NOT EXISTS registry_views (
+  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  lat           DOUBLE PRECISION NOT NULL,       -- 위도
+  lng           DOUBLE PRECISION NOT NULL,       -- 경도
+  road_address  TEXT,                            -- 도로명주소
+  jibun_address TEXT,                            -- 지번주소
+  viewed_at     TIMESTAMPTZ DEFAULT now()        -- 열람일시
+);
+
+-- 좌표 범위 검색 인덱스
+CREATE INDEX IF NOT EXISTS idx_registry_views_location ON registry_views (lat, lng);
+CREATE INDEX IF NOT EXISTS idx_registry_views_viewed_at ON registry_views (viewed_at DESC);
+
+-- =============================================
+-- registry_views 소유자 정보 컬럼 추가
+-- (이미 테이블이 있는 경우 이 ALTER TABLE만 실행)
+-- =============================================
+ALTER TABLE registry_views ADD COLUMN IF NOT EXISTS owner_name    TEXT;  -- 소유자 실명
+ALTER TABLE registry_views ADD COLUMN IF NOT EXISTS owner_address TEXT;  -- 소유자 실거주지
+
+-- =============================================
 -- RLS (Row Level Security) 설정 (선택사항)
 -- 단일 사용자이므로 비활성화 또는 간단하게 설정
 -- =============================================
 -- ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
 -- CREATE POLICY "모든 접근 허용" ON properties FOR ALL USING (true);
+-- ALTER TABLE registry_views ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY "모든 접근 허용" ON registry_views FOR ALL USING (true);
