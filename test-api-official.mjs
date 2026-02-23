@@ -101,7 +101,7 @@ async function testLocation(label, lat, lng, rsaPublicKey) {
   console.log(`  고유번호 ${dataList.length}건 발견`);
   dataList.forEach((item, i) => {
     const status = item.pin_mid_spe_yn === 'Y' ? '[특수필지]' : '';
-    console.log(`    [${i}] pin=${item.pin} | 구분=${item.real_cls_cd} | 주소=${item.real_indi_cont} ${status}`);
+    console.log(`    [${i}] pin=${item.pin} | pin_land=${item.pin_land} | 구분=${item.real_cls_cd} | 주소=${item.real_indi_cont} ${status}`);
   });
 
   // 집합건물 > 건물 > 토지 순으로 우선 선택, 특수필지 제외
@@ -138,7 +138,7 @@ async function testLocation(label, lat, lng, rsaPublicKey) {
           UserId: aesEncrypt(aesKey, aesIv, IROS_USER_ID),
           UserPassword: aesEncrypt(aesKey, aesIv, IROS_USER_PASSWORD),
         },
-        Pin: aesEncrypt(aesKey, aesIv, pin),
+        Pin: pin,  // 평문 전달 (틸코 기술지원 확인)
         EmoneyNo1: aesEncrypt(aesKey, aesIv, EMONEY_NO1),
         EmoneyNo2: aesEncrypt(aesKey, aesIv, EMONEY_NO2),
         EmoneyPwd: aesEncrypt(aesKey, aesIv, EMONEY_PWD),
@@ -161,19 +161,18 @@ async function testLocation(label, lat, lng, rsaPublicKey) {
   }
 
   const xmlData = regJson.XmlData || '';
-  const ownerMatch = xmlData.match(/<owner_nm>([^<]*)<\/owner_nm>/);
-  const addrMatch = xmlData.match(/<rd_addr>([^<]*)<\/rd_addr>/)
-    || xmlData.match(/<jibun_addr>([^<]*)<\/jibun_addr>/);
-  const areaMatch = xmlData.match(/<area>([^<]*)<\/area>/);
-  const purposeMatch = xmlData.match(/<purpose_nm>([^<]*)<\/purpose_nm>/);
+
+  // 소유주 + 소유자 주소: 가장 마지막 갑구(type=K) 소유자 항목에서 추출
+  // 형식: "소유자  이름  번호\n    주소"
+  const ownerBlocks = [...xmlData.matchAll(/<wksbk_nomprs_and_etc><!\[CDATA\[([\s\S]*?)\]\]><\/wksbk_nomprs_and_etc>/g)];
+  const lastOwnerBlock = [...ownerBlocks].reverse().find(m => m[1].includes('소유자'));
+  const ownerName = lastOwnerBlock ? (lastOwnerBlock[1].match(/소유자\s+([^\s]+)/) || [])[1] : undefined;
+  const ownerAddr = lastOwnerBlock ? (lastOwnerBlock[1].match(/소유자\s+[^\n]+\n\s*([^\n]+)/) || [])[1]?.trim() : undefined;
 
   console.log("\n  ┌─── 등기부등본 결과 ───────────────────────");
-  console.log("  │ 소유주   :", ownerMatch ? ownerMatch[1] : '정보 없음');
-  console.log("  │ 등기주소 :", addrMatch ? addrMatch[1] : '정보 없음');
-  console.log("  │ 면적     :", areaMatch ? areaMatch[1] + ' ㎡' : '정보 없음');
-  console.log("  │ 용도     :", purposeMatch ? purposeMatch[1] : '정보 없음');
+  console.log("  │ 소유주   :", ownerName || '정보 없음');
+  console.log("  │ 소유자주소:", ownerAddr || '정보 없음');
   console.log("  └───────────────────────────────────────────");
-  console.log("  XmlData (앞 500자):\n", xmlData.substring(0, 500));
 }
 
 (async () => {
