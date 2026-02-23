@@ -457,7 +457,8 @@ async function fetchRegistryInfo(pin: string): Promise<{ owner: string; address:
     }
 
     const registryJson = await registryRes.json();
-    if (registryJson.Status === 'Error' || (registryJson.Message && registryJson.Message !== 'OK')) {
+    const regOk = registryJson.Message === 'OK' || registryJson.Message === '성공' || registryJson.Status === 'Success';
+    if (!regOk) {
         const errorDetail = registryJson.ErrorLog || registryJson.TargetMessage || '';
         throw new Error(registryJson.Message + (errorDetail ? ` (${errorDetail})` : '') || '등기정보 조회 실패');
     }
@@ -508,7 +509,7 @@ async function fetchPNU(lat: number, lng: number): Promise<{ pnu: string; jibunA
     return { pnu, jibunAddr: result.text };
 }
 
-async function fetchUniqueNoByAddress(addr: string): Promise<{ uniqueNo: string; realtyType: string; addrFull: string }[]> {
+async function fetchUniqueNoByAddress(addr: string): Promise<{ uniqueNo: string; realtyType: string; addrFull: string; isSpecial: boolean }[]> {
     const { encAesKey } = await createTilkoEncryption();
     const searchRes = await fetch('https://api.tilko.net/api/v2.0/Iros2/RetrieveSmplSrchList', {
         method: 'POST',
@@ -517,18 +518,20 @@ async function fetchUniqueNoByAddress(addr: string): Promise<{ uniqueNo: string;
             'ENC-KEY': encAesKey,
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ Address: addr, KindClsFlag: '0', Page: '1' }),
+        body: JSON.stringify({ Address: addr }),
     });
     const searchJson = await searchRes.json();
-    if (!searchJson.Message || searchJson.Message !== 'OK') {
+    const searchOk = searchJson.Message === 'OK' || searchJson.Message === '성공' || searchJson.Status === 'Success';
+    if (!searchOk) {
         throw new Error(searchJson.ErrorLog || searchJson.Message || '고유번호 검색 실패');
     }
-    const dataList = searchJson.DataList || [];
+    const dataList = (searchJson.Result && searchJson.Result.DataList) || searchJson.DataList || [];
     if (dataList.length === 0) throw new Error('해당 주소에 대한 등기 정보를 찾을 수 없습니다.');
     return dataList.map((item: any) => ({
-        uniqueNo: item.pin || item.wk_pin || '',
+        uniqueNo: item.pin_land || item.pin || item.wk_pin || '',
         realtyType: item.real_cls_cd || '',
         addrFull: item.real_indi_cont || '',
+        isSpecial: item.pin_mid_spe_yn === 'Y',
     }));
 }
 
@@ -798,8 +801,10 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
             setPnu(pnuResult.pnu);
             setStatus('고유번호 검색 중...');
             const uniqueNoList = await fetchUniqueNoByAddress(pnuResult.jibunAddr);
-            const validItem = uniqueNoList.find(i => i.uniqueNo && i.realtyType === '집합건물')
-                || uniqueNoList.find(i => i.uniqueNo && i.realtyType === '건물')
+            const normalItems = uniqueNoList.filter(i => i.uniqueNo && !i.isSpecial);
+            const validItem = normalItems.find(i => i.realtyType === '집합건물')
+                || normalItems.find(i => i.realtyType === '건물')
+                || normalItems[0]
                 || uniqueNoList.find(i => i.uniqueNo)
                 || uniqueNoList[0];
             const targetUniqueNo = validItem?.uniqueNo || '';
