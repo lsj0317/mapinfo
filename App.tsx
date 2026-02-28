@@ -39,11 +39,56 @@ const REGISTRY_CACHE_KEY = 'registry_cache';
 const OFFLINE_QUEUE_KEY = 'offline_queue';
 const BUILDING_FILTER_KEY = 'building_filter';
 const NOTIFICATION_STORE_KEY = 'notification_store';
+const ELDERLY_MODE_KEY = 'elderly_mode';
 
 // 태양광 설치 기준 면적 (㎡)
 const SOLAR_MIN_AREA_SMALL = 200;   // 소형 (필터 1단계)
 const SOLAR_MIN_AREA_MEDIUM = 500;  // 중형 (필터 2단계)
 const SOLAR_MIN_AREA_LARGE = 1000;  // 대형 (필터 3단계)
+
+// ===== 고령자 모드 글꼴/사이즈 설정 =====
+
+const FONT_SCALE = {
+    normal: {
+        xs: 11,
+        sm: 12,
+        md: 13,
+        base: 14,
+        lg: 15,
+        xl: 16,
+        '2xl': 17,
+        '3xl': 18,
+        '4xl': 24,
+    },
+    elderly: {
+        xs: 14,
+        sm: 15,
+        md: 16,
+        base: 17,
+        lg: 18,
+        xl: 20,
+        '2xl': 22,
+        '3xl': 24,
+        '4xl': 30,
+    },
+};
+
+const TOUCH_SIZE = {
+    normal: { minHeight: 36, padding: 8 },
+    elderly: { minHeight: 52, padding: 14 },
+};
+
+const COLORS_HIGH_CONTRAST = {
+    primary: '#0D47A1',
+    primaryBg: '#1565C0',
+    text: '#000000',
+    textSecondary: '#333333',
+    textMuted: '#555555',
+    border: '#999999',
+    error: '#C62828',
+    success: '#1B5E20',
+    warning: '#E65100',
+};
 
 // React Query 클라이언트
 const queryClient = new QueryClient({
@@ -321,6 +366,9 @@ interface MapStore {
     clusteringEnabled: boolean;
     setClusteringEnabled: (enabled: boolean) => void;
 
+    elderlyMode: boolean;
+    setElderlyMode: (mode: boolean) => void;
+
     fetchBuildings: (region: Region, page?: number) => Promise<void>;
     saveRecentPlace: (building: Building) => Promise<void>;
     saveFavoritePlace: (building: Building) => Promise<void>;
@@ -362,6 +410,11 @@ const useMapStore = create<MapStore>((set, get) => ({
     clusteringEnabled: true,
     setClusteringEnabled: (enabled) => set({ clusteringEnabled: enabled }),
 
+    elderlyMode: false,
+    setElderlyMode: (mode) => {
+        set({ elderlyMode: mode });
+        AsyncStorage.setItem(ELDERLY_MODE_KEY, JSON.stringify(mode)).catch(console.warn);
+    },
 
     fetchBuildings: async (currentRegion: Region, page = 1) => {
         const isFirstPage = page === 1;
@@ -1586,6 +1639,9 @@ const PropertyDetailModal = ({
     property: Property | null;
 }) => {
     const qc = useQueryClient();
+    const { elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
     const [editStatus, setEditStatus] = useState<SalesStatus>('미접촉');
     const [editMemo, setEditMemo] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -1623,11 +1679,13 @@ const PropertyDetailModal = ({
                 <View style={[styles.modalContent, { maxHeight: height * 0.88 }]}>
                     {/* 헤더 */}
                     <View style={styles.propModalHeader}>
-                        <Text style={styles.propModalTitle} numberOfLines={1}>
+                        <Text style={[styles.propModalTitle, { fontSize: fs['2xl'] }]} numberOfLines={1}
+                            accessibilityRole="header"
+                        >
                             {property.building_name || property.road_address || '부동산 정보'}
                         </Text>
-                        <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-                            <Text style={styles.statusBadgeText}>{property.sales_status}</Text>
+                        <View style={[styles.statusBadge, { backgroundColor: statusColor }, elderlyMode && { paddingHorizontal: 14, paddingVertical: 6 }]}>
+                            <Text style={[styles.statusBadgeText, { fontSize: fs.sm }]}>{property.sales_status}</Text>
                         </View>
                     </View>
 
@@ -1713,20 +1771,24 @@ const PropertyDetailModal = ({
                         <View style={styles.propSection}>
                             <Text style={styles.propSectionTitle}>영업상태 관리</Text>
 
-                            <View style={styles.statusGrid}>
+                            <View style={[styles.statusGrid, elderlyMode && { gap: 10 }]}>
                                 {SALES_STATUSES.map(s => (
                                     <TouchableOpacity
                                         key={s}
                                         style={[
                                             styles.statusChip,
                                             { borderColor: SALES_STATUS_COLORS[s] },
+                                            elderlyMode && { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 24, borderWidth: 2 },
                                             editStatus === s && { backgroundColor: SALES_STATUS_COLORS[s] },
                                         ]}
                                         onPress={() => setEditStatus(s)}
+                                        accessibilityLabel={`영업상태 ${s} ${editStatus === s ? '선택됨' : ''}`}
+                                        accessibilityRole="button"
+                                        accessibilityState={{ selected: editStatus === s }}
                                     >
                                         <Text style={[
                                             styles.statusChipText,
-                                            { color: editStatus === s ? '#fff' : SALES_STATUS_COLORS[s] },
+                                            { color: editStatus === s ? '#fff' : SALES_STATUS_COLORS[s], fontSize: fs.md },
                                         ]}>
                                             {s}
                                         </Text>
@@ -1749,18 +1811,25 @@ const PropertyDetailModal = ({
 
                     {/* 버튼 영역 */}
                     <View style={styles.propModalButtons}>
-                        <TouchableOpacity style={styles.propCancelButton} onPress={onClose}>
-                            <Text style={styles.propCancelButtonText}>닫기</Text>
+                        <TouchableOpacity
+                            style={[styles.propCancelButton, elderlyMode && { paddingVertical: 18 }]}
+                            onPress={onClose}
+                            accessibilityLabel="닫기"
+                            accessibilityRole="button"
+                        >
+                            <Text style={[styles.propCancelButtonText, { fontSize: fs.lg }]}>닫기</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.propSaveButton, isSaving && { opacity: 0.6 }]}
+                            style={[styles.propSaveButton, elderlyMode && { paddingVertical: 18 }, isSaving && { opacity: 0.6 }]}
                             onPress={handleSave}
                             disabled={isSaving}
+                            accessibilityLabel="영업상태 저장"
+                            accessibilityRole="button"
                         >
                             {isSaving ? (
                                 <ActivityIndicator color="#fff" size="small" />
                             ) : (
-                                <Text style={styles.propSaveButtonText}>저장</Text>
+                                <Text style={[styles.propSaveButtonText, { fontSize: fs.lg }]}>저장</Text>
                             )}
                         </TouchableOpacity>
                     </View>
@@ -2586,9 +2655,10 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
     const [searchResults, setSearchResults] = useState<Building[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [daumModalVisible, setDaumModalVisible] = useState(false);
-    // 다음 주소검색 후 확인 대기 중인 결과
     const [pendingResult, setPendingResult] = useState<Building | null>(null);
-    const { setRegion, setSelectedMarker } = useMapStore();
+    const { setRegion, setSelectedMarker, elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
 
     // VWorld 장소명 검색
     const handleSearch = async () => {
@@ -2674,33 +2744,41 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
         <View style={styles.subScreenContainer}>
             {/* 헤더 */}
             <View style={styles.subScreenHeader}>
-                <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={styles.backButtonText}>{'< 뒤로'}</Text>
+                <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
                 </TouchableOpacity>
-                <Text style={styles.subScreenTitle}>장소 검색</Text>
+                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>장소 검색</Text>
                 <View style={{ width: 50 }} />
             </View>
 
             {/* 다음 주소검색 버튼 */}
             <TouchableOpacity
-                style={styles.daumSearchButton}
+                style={[styles.daumSearchButton, elderlyMode && { paddingVertical: 16, marginHorizontal: 16 }]}
                 onPress={() => setDaumModalVisible(true)}
+                accessibilityLabel="다음 주소 검색 열기"
+                accessibilityRole="button"
             >
-                <Text style={styles.daumSearchButtonText}>🏠 다음 주소 검색</Text>
+                <Text style={[styles.daumSearchButtonText, { fontSize: fs.lg }]}>다음 주소 검색</Text>
             </TouchableOpacity>
 
             {/* 장소명 검색 */}
             <View style={styles.searchContainer}>
                 <TextInput
-                    style={styles.searchInput}
+                    style={[styles.searchInput, { fontSize: fs.base }, elderlyMode && { paddingVertical: 12 }]}
                     placeholder="장소명으로 검색 (공장, 창고 등)"
                     value={searchText}
                     onChangeText={setSearchText}
                     onSubmitEditing={handleSearch}
                     returnKeyType="search"
+                    accessibilityLabel="장소명 검색 입력"
                 />
-                <TouchableOpacity onPress={handleSearch} style={styles.searchButton}>
-                    <Text style={styles.searchButtonText}>검색</Text>
+                <TouchableOpacity
+                    onPress={handleSearch}
+                    style={[styles.searchButton, elderlyMode && { paddingHorizontal: 20, paddingVertical: 12 }]}
+                    accessibilityLabel="검색 실행"
+                    accessibilityRole="button"
+                >
+                    <Text style={[styles.searchButtonText, { fontSize: fs.base }]}>검색</Text>
                 </TouchableOpacity>
             </View>
 
@@ -2750,23 +2828,25 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                     data={searchResults}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
-                        <View style={styles.listItemContainer}>
-                            <View style={styles.listItem}>
-                                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                                <Text style={styles.itemAddress} numberOfLines={2}>{item.address}</Text>
+                        <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
+                            <View style={[styles.listItem, elderlyMode && { padding: 18 }]}>
+                                <Text style={[styles.itemName, { fontSize: fs.lg }]} numberOfLines={1}>{item.name}</Text>
+                                <Text style={[styles.itemAddress, { fontSize: fs.md }]} numberOfLines={2}>{item.address}</Text>
                             </View>
                             <TouchableOpacity
-                                style={styles.locationButton}
+                                style={[styles.locationButton, elderlyMode && { paddingHorizontal: 14, paddingVertical: 14, minWidth: 72 }]}
                                 onPress={() => moveToLocation(item)}
+                                accessibilityLabel={`${item.name} 지도에서 보기`}
+                                accessibilityRole="button"
                             >
-                                <Text style={styles.locationButtonText}>{'지도에서\n보기'}</Text>
+                                <Text style={[styles.locationButtonText, { fontSize: fs.sm }]}>{'지도에서\n보기'}</Text>
                             </TouchableOpacity>
                         </View>
                     )}
                     ListEmptyComponent={
                         !pendingResult ? (
                             <View style={styles.emptyContainer}>
-                                <Text style={styles.emptyText}>
+                                <Text style={[styles.emptyText, { fontSize: fs.base }]}>
                                     {'위의 다음 주소 검색 또는\n장소명 검색을 이용해 주세요.'}
                                 </Text>
                             </View>
@@ -2812,7 +2892,8 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
 const RecentPlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMoveToMap: () => void }) => {
     const [places, setPlaces] = useState<Building[]>([]);
     const [searchText, setSearchText] = useState('');
-    const { setRegion, setSelectedMarker, removeRecentPlace } = useMapStore();
+    const { setRegion, setSelectedMarker, removeRecentPlace, elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
 
     useEffect(() => { loadPlaces(); }, []);
 
@@ -2828,41 +2909,41 @@ const RecentPlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMov
     return (
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
-                <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={styles.backButtonText}>{'< 뒤로'}</Text>
+                <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
                 </TouchableOpacity>
-                <Text style={styles.subScreenTitle}>최근 본 장소</Text>
+                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>최근 본 장소</Text>
                 <View style={{ width: 50 }} />
             </View>
             <View style={styles.searchContainer}>
-                <TextInput style={styles.searchInput} placeholder="장소 검색..." value={searchText} onChangeText={setSearchText} />
-                {searchText.length > 0 && <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}><Text style={styles.clearButtonText}>X</Text></TouchableOpacity>}
+                <TextInput style={[styles.searchInput, { fontSize: fs.base }, elderlyMode && { paddingVertical: 12 }]} placeholder="장소 검색..." value={searchText} onChangeText={setSearchText} accessibilityLabel="장소 검색" />
+                {searchText.length > 0 && <TouchableOpacity onPress={() => setSearchText('')} style={[styles.clearButton, elderlyMode && { padding: 12 }]} accessibilityLabel="검색어 지우기" accessibilityRole="button"><Text style={[styles.clearButtonText, { fontSize: fs.base }]}>X</Text></TouchableOpacity>}
             </View>
             <FlatList
                 data={filtered}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
-                    <View style={styles.listItemContainer}>
-                        <TouchableOpacity style={styles.listItem} onPress={() => {
+                    <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
+                        <TouchableOpacity style={[styles.listItem, elderlyMode && { padding: 18 }]} onPress={() => {
                             setSelectedMarker(item);
                             setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 });
                             onMoveToMap();
-                        }}>
-                            <Text style={styles.itemName}>{item.name}</Text>
-                            <Text style={styles.itemAddress}>{item.address}</Text>
-                            <Text style={styles.itemDate}>{item.timestamp ? new Date(item.timestamp).toLocaleDateString() : ''}</Text>
+                        }} accessibilityLabel={`${item.name}, ${item.address}, 지도에서 보기`} accessibilityRole="button">
+                            <Text style={[styles.itemName, { fontSize: fs.lg }]}>{item.name}</Text>
+                            <Text style={[styles.itemAddress, { fontSize: fs.md }]}>{item.address}</Text>
+                            <Text style={[styles.itemDate, { fontSize: fs.sm }]}>{item.timestamp ? new Date(item.timestamp).toLocaleDateString() : ''}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.deleteButton} onPress={() => {
+                        <TouchableOpacity style={[styles.deleteButton, elderlyMode && { paddingHorizontal: 16, paddingVertical: 12 }]} onPress={() => {
                             Alert.alert("삭제 확인", "삭제하시겠습니까?", [
                                 { text: "취소", style: "cancel" },
                                 { text: "확인", onPress: async () => { await removeRecentPlace(item.id); loadPlaces(); } }
                             ]);
-                        }}>
-                            <Text style={styles.deleteButtonText}>🗑️</Text>
+                        }} accessibilityLabel={`${item.name} 삭제`} accessibilityRole="button">
+                            <Text style={[styles.deleteButtonText, elderlyMode && { fontSize: 22 }]}>🗑️</Text>
                         </TouchableOpacity>
                     </View>
                 )}
-                ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>{searchText ? "검색 결과가 없습니다." : "최근 본 장소가 없습니다."}</Text></View>}
+                ListEmptyComponent={<View style={styles.emptyContainer}><Text style={[styles.emptyText, { fontSize: fs.base }]}>{searchText ? "검색 결과가 없습니다." : "최근 본 장소가 없습니다."}</Text></View>}
             />
         </View>
     );
@@ -2873,7 +2954,8 @@ const RecentPlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMov
 const FavoritePlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMoveToMap: () => void }) => {
     const [places, setPlaces] = useState<Building[]>([]);
     const [searchText, setSearchText] = useState('');
-    const { setRegion, setSelectedMarker, removeFavoritePlace } = useMapStore();
+    const { setRegion, setSelectedMarker, removeFavoritePlace, elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
 
     useEffect(() => { loadPlaces(); }, []);
 
@@ -2889,41 +2971,41 @@ const FavoritePlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onM
     return (
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
-                <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={styles.backButtonText}>{'< 뒤로'}</Text>
+                <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
                 </TouchableOpacity>
-                <Text style={styles.subScreenTitle}>즐겨 찾는 장소</Text>
+                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>즐겨 찾는 장소</Text>
                 <View style={{ width: 50 }} />
             </View>
             <View style={styles.searchContainer}>
-                <TextInput style={styles.searchInput} placeholder="장소 검색..." value={searchText} onChangeText={setSearchText} />
-                {searchText.length > 0 && <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}><Text style={styles.clearButtonText}>X</Text></TouchableOpacity>}
+                <TextInput style={[styles.searchInput, { fontSize: fs.base }, elderlyMode && { paddingVertical: 12 }]} placeholder="장소 검색..." value={searchText} onChangeText={setSearchText} accessibilityLabel="장소 검색" />
+                {searchText.length > 0 && <TouchableOpacity onPress={() => setSearchText('')} style={[styles.clearButton, elderlyMode && { padding: 12 }]} accessibilityLabel="검색어 지우기" accessibilityRole="button"><Text style={[styles.clearButtonText, { fontSize: fs.base }]}>X</Text></TouchableOpacity>}
             </View>
             <FlatList
                 data={filtered}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
-                    <View style={styles.listItemContainer}>
-                        <TouchableOpacity style={styles.listItem} onPress={() => {
+                    <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
+                        <TouchableOpacity style={[styles.listItem, elderlyMode && { padding: 18 }]} onPress={() => {
                             setSelectedMarker(item);
                             setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 });
                             onMoveToMap();
-                        }}>
-                            <Text style={styles.itemName}>{item.name}</Text>
-                            <Text style={styles.itemAddress}>{item.address}</Text>
-                            <Text style={styles.itemDate}>{item.timestamp ? new Date(item.timestamp).toLocaleDateString() : ''}</Text>
+                        }} accessibilityLabel={`${item.name}, ${item.address}, 지도에서 보기`} accessibilityRole="button">
+                            <Text style={[styles.itemName, { fontSize: fs.lg }]}>{item.name}</Text>
+                            <Text style={[styles.itemAddress, { fontSize: fs.md }]}>{item.address}</Text>
+                            <Text style={[styles.itemDate, { fontSize: fs.sm }]}>{item.timestamp ? new Date(item.timestamp).toLocaleDateString() : ''}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.deleteButton} onPress={() => {
+                        <TouchableOpacity style={[styles.deleteButton, elderlyMode && { paddingHorizontal: 16, paddingVertical: 12 }]} onPress={() => {
                             Alert.alert("삭제 확인", "즐겨찾기에서 삭제하시겠습니까?", [
                                 { text: "취소", style: "cancel" },
                                 { text: "확인", onPress: async () => { await removeFavoritePlace(item.id); loadPlaces(); } }
                             ]);
-                        }}>
-                            <Text style={styles.deleteButtonText}>🗑️</Text>
+                        }} accessibilityLabel={`${item.name} 즐겨찾기에서 삭제`} accessibilityRole="button">
+                            <Text style={[styles.deleteButtonText, elderlyMode && { fontSize: 22 }]}>🗑️</Text>
                         </TouchableOpacity>
                     </View>
                 )}
-                ListEmptyComponent={<View style={styles.emptyContainer}><Text style={styles.emptyText}>{searchText ? "검색 결과가 없습니다." : "즐겨 찾는 장소가 없습니다."}</Text></View>}
+                ListEmptyComponent={<View style={styles.emptyContainer}><Text style={[styles.emptyText, { fontSize: fs.base }]}>{searchText ? "검색 결과가 없습니다." : "즐겨 찾는 장소가 없습니다."}</Text></View>}
             />
         </View>
     );
@@ -2938,6 +3020,8 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
     const [selectedRecord, setSelectedRecord] = useState<RegistryViewRecord | null>(null);
     const [detailVisible, setDetailVisible] = useState(false);
     const [histXmlModalVisible, setHistXmlModalVisible] = useState(false);
+    const { elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
 
     useEffect(() => { loadHistory(); }, []);
 
@@ -3012,34 +3096,35 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
         <View style={styles.subScreenContainer}>
             {/* 헤더 */}
             <View style={styles.subScreenHeader}>
-                <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={styles.backButtonText}>{'< 뒤로'}</Text>
+                <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
                 </TouchableOpacity>
-                <Text style={styles.subScreenTitle}>등기 열람 이력</Text>
-                <TouchableOpacity onPress={loadHistory} style={{ paddingRight: 12 }}>
-                    <Text style={{ color: '#4A90E2', fontSize: 13, fontWeight: '600' }}>새로고침</Text>
+                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>등기 열람 이력</Text>
+                <TouchableOpacity onPress={loadHistory} style={{ paddingRight: 12, paddingVertical: elderlyMode ? 8 : 0 }} accessibilityLabel="새로고침" accessibilityRole="button">
+                    <Text style={{ color: '#4A90E2', fontSize: fs.md, fontWeight: '600' }}>새로고침</Text>
                 </TouchableOpacity>
             </View>
 
             {/* 검색 */}
             <View style={styles.searchContainer}>
                 <TextInput
-                    style={styles.searchInput}
+                    style={[styles.searchInput, { fontSize: fs.base }, elderlyMode && { paddingVertical: 12 }]}
                     placeholder="주소 또는 소유자명 검색..."
                     value={searchText}
                     onChangeText={setSearchText}
+                    accessibilityLabel="주소 또는 소유자명 검색"
                 />
                 {searchText.length > 0 && (
-                    <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
-                        <Text style={styles.clearButtonText}>X</Text>
+                    <TouchableOpacity onPress={() => setSearchText('')} style={[styles.clearButton, elderlyMode && { padding: 12 }]} accessibilityLabel="검색어 지우기" accessibilityRole="button">
+                        <Text style={[styles.clearButtonText, { fontSize: fs.base }]}>X</Text>
                     </TouchableOpacity>
                 )}
             </View>
 
             {/* 건수 요약 + CSV 내보내기 */}
             {!isLoading && (
-                <View style={styles.historyToolbar}>
-                    <Text style={{ fontSize: 12, color: '#888' }}>
+                <View style={{ paddingHorizontal: 16, paddingVertical: elderlyMode ? 10 : 6, backgroundColor: '#F5F5F5' }}>
+                    <Text style={{ fontSize: fs.sm, color: '#888' }}>
                         총 {filtered.length}건 | 소유자 확인: {filtered.filter(r => r.owner_name).length}건
                     </Text>
                     <TouchableOpacity
@@ -3214,25 +3299,219 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
     );
 };
 
+// ===== 고령자 모드 설정 화면 =====
+
+const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
+    const { elderlyMode, setElderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
+
+    return (
+        <View style={styles.subScreenContainer}>
+            <View style={styles.subScreenHeader}>
+                <TouchableOpacity
+                    onPress={onBack}
+                    style={styles.backButton}
+                    accessibilityLabel="뒤로 가기"
+                    accessibilityRole="button"
+                >
+                    <Text style={[styles.backButtonText, elderlyMode && { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                </TouchableOpacity>
+                <Text style={[styles.subScreenTitle, elderlyMode && { fontSize: fs['3xl'] }]}>화면 설정</Text>
+                <View style={{ width: 50 }} />
+            </View>
+            <ScrollView style={{ flex: 1, padding: 20 }}>
+                {/* 고령자 모드 토글 */}
+                <View style={{
+                    backgroundColor: elderlyMode ? '#E3F2FD' : '#F8F9FA',
+                    borderRadius: 16,
+                    padding: 20,
+                    marginBottom: 20,
+                    borderWidth: elderlyMode ? 2 : 1,
+                    borderColor: elderlyMode ? '#1565C0' : '#eee',
+                }}>
+                    <Text style={{
+                        fontSize: fs['2xl'],
+                        fontWeight: '700',
+                        color: '#333',
+                        marginBottom: 8,
+                    }}>
+                        큰 글씨 모드
+                    </Text>
+                    <Text style={{
+                        fontSize: fs.base,
+                        color: '#666',
+                        lineHeight: fs.base * 1.6,
+                        marginBottom: 16,
+                    }}>
+                        글자 크기를 키우고, 버튼을 크게 만들어{'\n'}
+                        보기 편하게 설정합니다.
+                    </Text>
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: elderlyMode ? '#C62828' : '#1565C0',
+                            borderRadius: 12,
+                            paddingVertical: ts.minHeight > 40 ? 18 : 14,
+                            alignItems: 'center',
+                        }}
+                        onPress={() => setElderlyMode(!elderlyMode)}
+                        accessibilityLabel={elderlyMode ? '큰 글씨 모드 끄기' : '큰 글씨 모드 켜기'}
+                        accessibilityRole="button"
+                    >
+                        <Text style={{
+                            color: '#fff',
+                            fontSize: fs.xl,
+                            fontWeight: '700',
+                        }}>
+                            {elderlyMode ? '큰 글씨 모드 끄기' : '큰 글씨 모드 켜기'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* 미리보기 */}
+                <View style={{
+                    backgroundColor: '#F8F9FA',
+                    borderRadius: 16,
+                    padding: 20,
+                    marginBottom: 20,
+                    borderWidth: 1,
+                    borderColor: '#eee',
+                }}>
+                    <Text style={{
+                        fontSize: fs['2xl'],
+                        fontWeight: '700',
+                        color: '#333',
+                        marginBottom: 12,
+                    }}>
+                        미리보기
+                    </Text>
+
+                    {/* 예시 버튼 */}
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: '#4A90E2',
+                            borderRadius: 12,
+                            paddingVertical: ts.padding,
+                            minHeight: ts.minHeight,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: 12,
+                        }}
+                    >
+                        <Text style={{ color: '#fff', fontSize: fs.lg, fontWeight: '700' }}>
+                            버튼 예시
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* 예시 텍스트들 */}
+                    <Text style={{ fontSize: fs.lg, color: '#333', fontWeight: '700', marginBottom: 4 }}>
+                        건물 이름 (제목)
+                    </Text>
+                    <Text style={{ fontSize: fs.base, color: '#555', marginBottom: 4 }}>
+                        서울특별시 강남구 역삼동 123-4
+                    </Text>
+                    <Text style={{ fontSize: fs.sm, color: '#888' }}>
+                        거리: 350m | 공장
+                    </Text>
+                </View>
+
+                {/* 현재 모드 안내 */}
+                <View style={{
+                    backgroundColor: elderlyMode ? '#FFF8E1' : '#F5F5F5',
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 30,
+                }}>
+                    <Text style={{
+                        fontSize: fs.md,
+                        color: elderlyMode ? '#E65100' : '#888',
+                        textAlign: 'center',
+                        lineHeight: fs.md * 1.6,
+                    }}>
+                        {elderlyMode
+                            ? '현재 큰 글씨 모드가 켜져 있습니다.\n글자와 버튼이 크게 표시됩니다.'
+                            : '현재 기본 모드입니다.\n글자가 작게 느껴지면 큰 글씨 모드를 켜주세요.'}
+                    </Text>
+                </View>
+            </ScrollView>
+        </View>
+    );
+};
+
 // ===== MoreScreen =====
 
 const MoreScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
-    const [currentView, setCurrentView] = useState<'menu' | 'search' | 'recent' | 'favorites' | 'registry'>('menu');
+    const { elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
+    const [currentView, setCurrentView] = useState<'menu' | 'search' | 'recent' | 'favorites' | 'registry' | 'settings'>('menu');
     if (currentView === 'search') return <PlaceSearchScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'recent') return <RecentPlacesScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'favorites') return <FavoritePlacesScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'registry') return <RegistryHistoryScreen onBack={() => setCurrentView('menu')} />;
+    if (currentView === 'settings') return <ElderlyModeScreen onBack={() => setCurrentView('menu')} />;
     return (
         <View style={styles.menuContainer}>
-            <TouchableOpacity style={styles.menuButton} onPress={() => setCurrentView('search')}><Text style={styles.menuButtonText}>장소 검색</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.menuButton} onPress={() => setCurrentView('recent')}><Text style={styles.menuButtonText}>최근 본 장소</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.menuButton} onPress={() => setCurrentView('favorites')}><Text style={styles.menuButtonText}>즐겨 찾는 장소</Text></TouchableOpacity>
             <TouchableOpacity
-                style={[styles.menuButton, { backgroundColor: '#E3F2FD', borderLeftWidth: 4, borderLeftColor: '#1565C0' }]}
-                onPress={() => setCurrentView('registry')}
+                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
+                onPress={() => setCurrentView('search')}
+                accessibilityLabel="장소 검색 화면으로 이동"
+                accessibilityRole="button"
             >
-                <Text style={[styles.menuButtonText, { color: '#1565C0' }]}>등기 열람 이력</Text>
-                <Text style={{ fontSize: 12, color: '#1976D2', marginTop: 2 }}>소유자 실명 · 실거주지 확인 · CSV 내보내기</Text>
+                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>장소 검색</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
+                onPress={() => setCurrentView('recent')}
+                accessibilityLabel="최근 본 장소 화면으로 이동"
+                accessibilityRole="button"
+            >
+                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>최근 본 장소</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
+                onPress={() => setCurrentView('favorites')}
+                accessibilityLabel="즐겨 찾는 장소 화면으로 이동"
+                accessibilityRole="button"
+            >
+                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>즐겨 찾는 장소</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.menuButton, {
+                    backgroundColor: '#E3F2FD',
+                    borderLeftWidth: 4,
+                    borderLeftColor: '#1565C0',
+                    minHeight: ts.minHeight,
+                    padding: ts.padding,
+                }]}
+                onPress={() => setCurrentView('registry')}
+                accessibilityLabel="등기 열람 이력 화면으로 이동"
+                accessibilityRole="button"
+            >
+                <Text style={[styles.menuButtonText, { color: '#1565C0', fontSize: fs.xl }]}>등기 열람 이력</Text>
+                <Text style={{ fontSize: fs.sm, color: '#1976D2', marginTop: 2 }}>소유자 실명 · 실거주지 확인 · CSV 내보내기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.menuButton, {
+                    backgroundColor: elderlyMode ? '#FFF8E1' : '#F1F8E9',
+                    borderLeftWidth: 4,
+                    borderLeftColor: elderlyMode ? '#E65100' : '#4CAF50',
+                    minHeight: ts.minHeight,
+                    padding: ts.padding,
+                }]}
+                onPress={() => setCurrentView('settings')}
+                accessibilityLabel="화면 설정. 큰 글씨 모드를 켜거나 끌 수 있습니다"
+                accessibilityRole="button"
+            >
+                <Text style={[styles.menuButtonText, {
+                    color: elderlyMode ? '#E65100' : '#2E7D32',
+                    fontSize: fs.xl,
+                }]}>
+                    화면 설정 {elderlyMode ? '(큰 글씨 켜짐)' : ''}
+                </Text>
+                <Text style={{ fontSize: fs.sm, color: elderlyMode ? '#BF360C' : '#558B2F', marginTop: 2 }}>
+                    글자 크기 · 버튼 크기 조정
+                </Text>
             </TouchableOpacity>
         </View>
     );
@@ -3241,7 +3520,9 @@ const MoreScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
 // ===== BuildingListScreen =====
 
 const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
-    const { region, buildings, isLoading, isLoadingMore, fetchBuildings, lastFetchedRegion, page, hasMore, setRegion, setSelectedMarker, saveRecentPlace, buildingFilter, setBuildingFilter } = useMapStore();
+    const { region, buildings, isLoading, isLoadingMore, fetchBuildings, lastFetchedRegion, page, hasMore, setRegion, setSelectedMarker, saveRecentPlace, buildingFilter, setBuildingFilter, elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
     const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
@@ -3308,9 +3589,14 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
     return (
         <View style={styles.listContainer}>
             <View style={styles.listHeader}>
-                <Text style={styles.listTitle}>주변 공장·창고·물류 (1km 이내)</Text>
-                <TouchableOpacity onPress={() => fetchBuildings(region, 1)}>
-                    <Text style={styles.refreshText}>새로고침</Text>
+                <Text style={[styles.listTitle, { fontSize: fs.lg }]}>주변 공장·창고·물류 (1km 이내)</Text>
+                <TouchableOpacity
+                    onPress={() => fetchBuildings(region, 1)}
+                    style={elderlyMode ? { paddingVertical: 8, paddingHorizontal: 12 } : undefined}
+                    accessibilityLabel="목록 새로고침"
+                    accessibilityRole="button"
+                >
+                    <Text style={[styles.refreshText, { fontSize: fs.base }]}>새로고침</Text>
                 </TouchableOpacity>
             </View>
 
@@ -3326,26 +3612,40 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
                 data={filteredBuildings}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
-                    <View style={styles.listItemContainer}>
-                        <View style={styles.listItem}>
+                    <View style={[styles.listItemContainer, elderlyMode && { minHeight: 80 }]}>
+                        <View style={[styles.listItem, elderlyMode && { padding: 18 }]}>
                             <View style={styles.itemHeader}>
-                                <Text style={styles.itemName}>{item.name}</Text>
-                                <Text style={styles.itemDistance}>{item.distance}m</Text>
+                                <Text style={[styles.itemName, { fontSize: fs.lg }]} accessibilityRole="text">{item.name}</Text>
+                                <Text style={[styles.itemDistance, { fontSize: fs.sm }]}>{item.distance}m</Text>
                             </View>
-                            {item.category ? <View style={styles.categoryBadge}><Text style={styles.categoryBadgeText}>{item.category}</Text></View> : null}
-                            <Text style={styles.itemAddress}>{item.address}</Text>
+                            {item.category ? (
+                                <View style={[styles.categoryBadge, elderlyMode && { paddingHorizontal: 10, paddingVertical: 4 }]}>
+                                    <Text style={[styles.categoryBadgeText, { fontSize: fs.xs }]}>{item.category}</Text>
+                                </View>
+                            ) : null}
+                            <Text style={[styles.itemAddress, { fontSize: fs.md }]}>{item.address}</Text>
                         </View>
                         <View style={styles.listItemActions}>
-                            <TouchableOpacity style={[styles.listItemIconBtn, { paddingHorizontal: 10, width: 'auto' as any }]} onPress={async () => {
-                                await saveRecentPlace(item);
-                                setSelectedMarker(item);
-                                setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 });
-                                onMoveToMap();
-                            }}>
-                                <Text style={{ color: '#4A90E2', fontSize: 13, fontWeight: '600' }}>보기</Text>
+                            <TouchableOpacity
+                                style={[styles.listItemIconBtn, { paddingHorizontal: elderlyMode ? 14 : 10, width: 'auto' as any }, elderlyMode && { minHeight: ts.minHeight, borderRadius: 10 }]}
+                                onPress={async () => {
+                                    await saveRecentPlace(item);
+                                    setSelectedMarker(item);
+                                    setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 });
+                                    onMoveToMap();
+                                }}
+                                accessibilityLabel={`${item.name} 지도에서 보기`}
+                                accessibilityRole="button"
+                            >
+                                <Text style={{ color: '#4A90E2', fontSize: fs.md, fontWeight: '600' }}>보기</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.listItemIconBtn} onPress={() => toggleFavorite(item)}>
-                                <Text style={[styles.listItemIconText, { color: favoriteIds.has(item.id) ? '#FFD700' : '#aaa' }]}>★</Text>
+                            <TouchableOpacity
+                                style={[styles.listItemIconBtn, elderlyMode && { width: 44, height: 44, borderRadius: 22 }]}
+                                onPress={() => toggleFavorite(item)}
+                                accessibilityLabel={favoriteIds.has(item.id) ? `${item.name} 즐겨찾기 해제` : `${item.name} 즐겨찾기 추가`}
+                                accessibilityRole="button"
+                            >
+                                <Text style={[styles.listItemIconText, { color: favoriteIds.has(item.id) ? '#FFD700' : '#aaa' }, elderlyMode && { fontSize: 22 }]}>★</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -3358,7 +3658,7 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
                 ListFooterComponent={isLoadingMore ? <ActivityIndicator style={{ padding: 16 }} color="#4A90E2" /> : null}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyText}>주변 1km 이내에 공장·창고·물류 건물이 없습니다.{'\n'}산업단지 주변으로 이동 후 새로고침 해주세요.</Text>
+                        <Text style={[styles.emptyText, { fontSize: fs.base, lineHeight: fs.base * 1.6 }]}>주변 1km 이내에 공장·창고·물류 건물이 없습니다.{'\n'}산업단지 주변으로 이동 후 새로고침 해주세요.</Text>
                     </View>
                 }
             />
@@ -3371,7 +3671,16 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
 function AppContent() {
     const [currentTab, setCurrentTab] = useState('home');
     const mapRef = useRef<KakaoMapHandle>(null);
-    const { region, setRegion, selectedMarker, setSelectedMarker, mapType, setMapType, propertyMarkers, setPropertyMarkers, saveRecentPlace, buildingFilter, clusteringEnabled, setClusteringEnabled } = useMapStore();
+    const { region, setRegion, selectedMarker, setSelectedMarker, mapType, setMapType, propertyMarkers, setPropertyMarkers, saveRecentPlace, buildingFilter, clusteringEnabled, setClusteringEnabled, elderlyMode, setElderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
+
+    // 앱 시작 시 고령자 모드 복원
+    useEffect(() => {
+        AsyncStorage.getItem(ELDERLY_MODE_KEY).then(val => {
+            if (val !== null) setElderlyMode(JSON.parse(val));
+        }).catch(console.warn);
+    }, []);
 
     const [isMapLoading, setIsMapLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
@@ -3780,23 +4089,42 @@ function AppContent() {
                         {/* 지도 타입 탭 */}
                         <View style={styles.mapTypeContainer}>
                             <TouchableOpacity
-                                style={[styles.tabButton, mapType === 'standard' && styles.activeTabButton]}
+                                style={[
+                                    styles.tabButton,
+                                    elderlyMode && { paddingVertical: 12, paddingHorizontal: 18 },
+                                    mapType === 'standard' && styles.activeTabButton,
+                                ]}
                                 onPress={() => changeMapType('standard')}
+                                accessibilityLabel="일반 지도로 전환"
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: mapType === 'standard' }}
                             >
-                                <Text style={[styles.tabButtonText, mapType === 'standard' && styles.activeTabButtonText]}>일반지도</Text>
+                                <Text style={[styles.tabButtonText, { fontSize: fs.md }, mapType === 'standard' && styles.activeTabButtonText]}>일반지도</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.tabButton, mapType === 'cadastral' && styles.activeTabButton]}
+                                style={[
+                                    styles.tabButton,
+                                    elderlyMode && { paddingVertical: 12, paddingHorizontal: 18 },
+                                    mapType === 'cadastral' && styles.activeTabButton,
+                                ]}
                                 onPress={() => changeMapType('cadastral')}
+                                accessibilityLabel="지적도로 전환"
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: mapType === 'cadastral' }}
                             >
-                                <Text style={[styles.tabButtonText, mapType === 'cadastral' && styles.activeTabButtonText]}>지적도</Text>
+                                <Text style={[styles.tabButtonText, { fontSize: fs.md }, mapType === 'cadastral' && styles.activeTabButtonText]}>지적도</Text>
                             </TouchableOpacity>
                         </View>
 
 
                         {/* 현재 위치 버튼 */}
-                        <TouchableOpacity style={styles.gpsButton} onPress={handleGpsPress}>
-                            <Text style={styles.gpsButtonText}>🎯</Text>
+                        <TouchableOpacity
+                            style={[styles.gpsButton, elderlyMode && { width: 60, height: 60, borderRadius: 30, bottom: elderlyMode ? 140 : 130 }]}
+                            onPress={handleGpsPress}
+                            accessibilityLabel="현재 위치로 이동"
+                            accessibilityRole="button"
+                        >
+                            <Text style={[styles.gpsButtonText, elderlyMode && { fontSize: 30 }]}>🎯</Text>
                         </TouchableOpacity>
 
                         <LoadingOverlay visible={isMapLoading} message={loadingMessage} />
@@ -3814,21 +4142,35 @@ function AppContent() {
 
                         {/* 선택된 일반 마커 하단 패널 */}
                         {selectedMarker && !propertyModalVisible && (
-                            <View style={styles.bottomPanel}>
+                            <View style={[styles.bottomPanel, elderlyMode && { padding: 20, bottom: elderlyMode ? 130 : 125 }]}>
                                 <View style={styles.bottomPanelHandle} />
                                 <View style={styles.bottomPanelTopRow}>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={styles.bottomPanelAddress}>{selectedMarker.address}</Text>
-                                        <Text style={styles.bottomPanelCoord}>
+                                        <Text style={[styles.bottomPanelAddress, { fontSize: fs.lg, fontWeight: '700' }]}
+                                            accessibilityRole="text"
+                                        >
+                                            {selectedMarker.address}
+                                        </Text>
+                                        <Text style={[styles.bottomPanelCoord, { fontSize: fs.sm }]}>
                                             {selectedMarker.latitude.toFixed(6)}, {selectedMarker.longitude.toFixed(6)}
                                         </Text>
                                     </View>
                                     <View style={styles.bottomPanelIcons}>
-                                        <TouchableOpacity style={styles.bottomPanelIconBtn} onPress={handleToggleFavorite}>
-                                            <Text style={[styles.bottomPanelIconText, { color: isFavorite ? '#FFD700' : '#aaa' }]}>★</Text>
+                                        <TouchableOpacity
+                                            style={[styles.bottomPanelIconBtn, elderlyMode && { width: 44, height: 44, borderRadius: 22 }]}
+                                            onPress={handleToggleFavorite}
+                                            accessibilityLabel={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                                            accessibilityRole="button"
+                                        >
+                                            <Text style={[styles.bottomPanelIconText, { color: isFavorite ? '#FFD700' : '#aaa' }, elderlyMode && { fontSize: 24 }]}>★</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity style={styles.bottomPanelIconBtn} onPress={() => setSelectedMarker(null)}>
-                                            <Text style={[styles.bottomPanelIconText, { color: '#999', fontSize: 16 }]}>✕</Text>
+                                        <TouchableOpacity
+                                            style={[styles.bottomPanelIconBtn, elderlyMode && { width: 44, height: 44, borderRadius: 22 }]}
+                                            onPress={() => setSelectedMarker(null)}
+                                            accessibilityLabel="선택 해제"
+                                            accessibilityRole="button"
+                                        >
+                                            <Text style={[styles.bottomPanelIconText, { color: '#999', fontSize: elderlyMode ? 22 : 16 }]}>✕</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -3842,7 +4184,11 @@ function AppContent() {
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
-                                        style={[styles.bottomPanelButtonRegistry, registryRecord ? { backgroundColor: '#1565C0' } : null]}
+                                        style={[
+                                            styles.bottomPanelButtonRegistry,
+                                            elderlyMode && { paddingVertical: 14, borderRadius: 10 },
+                                            registryRecord ? { backgroundColor: '#1565C0' } : null,
+                                        ]}
                                         onPress={() => {
                                             if (registryRecord) {
                                                 handleRefreshRegistry();
@@ -3850,8 +4196,10 @@ function AppContent() {
                                                 setRegistryModalVisible(true);
                                             }
                                         }}
+                                        accessibilityLabel={registryRecord ? '등기부등본 갱신, 조회 요금이 발생합니다' : '등기부등본 조회'}
+                                        accessibilityRole="button"
                                     >
-                                        <Text style={styles.bottomPanelButtonText}>
+                                        <Text style={[styles.bottomPanelButtonText, { fontSize: fs.md }]}>
                                             {registryRecord ? '등기부등본갱신(조회요금 발생)' : '등기부등본 조회'}
                                         </Text>
                                     </TouchableOpacity>
@@ -3875,24 +4223,62 @@ function AppContent() {
             {/* 네트워크 상태 말풍선 (모든 탭에서 표시) */}
             <NetworkBubble isOnline={isOnline} />
 
-            <View style={styles.header}>
+            <View style={[styles.header, elderlyMode && { height: 70 }]}>
                 <View style={styles.headerIconWrap}>
                     <Text style={styles.headerIcon}>☀️</Text>
                 </View>
-                <Text style={styles.title}>태양광 영업지원 지도</Text>
+                <Text
+                    style={[styles.title, elderlyMode && { fontSize: fs['3xl'] }]}
+                    accessibilityRole="header"
+                >
+                    태양광 영업지원 지도
+                </Text>
             </View>
 
             {renderContent()}
 
-            <View style={styles.floatingMenu}>
-                <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentTab('home')}>
-                    <Text style={[styles.menuText, currentTab === 'home' && styles.activeMenuText]}>홈</Text>
+            <View style={[styles.floatingMenu, elderlyMode && { height: 72, bottom: 40 }]}>
+                <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => setCurrentTab('home')}
+                    accessibilityLabel="홈 화면, 지도 보기"
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: currentTab === 'home' }}
+                >
+                    <Text style={[
+                        styles.menuText,
+                        { fontSize: fs.xl },
+                        currentTab === 'home' && styles.activeMenuText,
+                        elderlyMode && currentTab === 'home' && { color: COLORS_HIGH_CONTRAST.primary, fontWeight: '800' },
+                    ]}>홈</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentTab('list')}>
-                    <Text style={[styles.menuText, currentTab === 'list' && styles.activeMenuText]}>지도주변</Text>
+                <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => setCurrentTab('list')}
+                    accessibilityLabel="지도 주변 건물 목록"
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: currentTab === 'list' }}
+                >
+                    <Text style={[
+                        styles.menuText,
+                        { fontSize: fs.xl },
+                        currentTab === 'list' && styles.activeMenuText,
+                        elderlyMode && currentTab === 'list' && { color: COLORS_HIGH_CONTRAST.primary, fontWeight: '800' },
+                    ]}>지도주변</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.menuItem} onPress={() => setCurrentTab('more')}>
-                    <Text style={[styles.menuText, currentTab === 'more' && styles.activeMenuText]}>더보기</Text>
+                <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => setCurrentTab('more')}
+                    accessibilityLabel="더보기 메뉴"
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: currentTab === 'more' }}
+                >
+                    <Text style={[
+                        styles.menuText,
+                        { fontSize: fs.xl },
+                        currentTab === 'more' && styles.activeMenuText,
+                        elderlyMode && currentTab === 'more' && { color: COLORS_HIGH_CONTRAST.primary, fontWeight: '800' },
+                    ]}>더보기</Text>
                 </TouchableOpacity>
             </View>
 
