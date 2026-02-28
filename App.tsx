@@ -1,24 +1,49 @@
+import './global.css';
 import 'react-native-url-polyfill/auto';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     StyleSheet, Text, View, SafeAreaView, TouchableOpacity,
     Platform, StatusBar, Alert, FlatList, Animated,
     ActivityIndicator, Dimensions, TextInput, Modal, ScrollView,
+    Share, Image, Linking, AppState, AppStateStatus,
 } from 'react-native';
-import MapView, { WMSTile, PROVIDER_DEFAULT, Region, Marker } from 'react-native-maps';
+import KakaoMapView, { KakaoMapHandle, type MapRegion as Region } from './KakaoMapView';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
-import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { VWORLD_API_KEY, TILKO_API_KEY, IROS_USER_ID, IROS_USER_PASSWORD, EMONEY_NO1, EMONEY_NO2, EMONEY_PWD } from '@env';
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
+import { VWORLD_API_KEY, TILKO_API_KEY, IROS_USER_ID, IROS_USER_PASSWORD, EMONEY_NO1, EMONEY_NO2, EMONEY_PWD, KAKAO_API_KEY } from '@env';
 import forge from 'node-forge';
 import { supabase, type Property, type SalesStatus } from './lib/supabase';
+
+// 선택적 패키지 (설치 필요: npx expo install expo-image-picker expo-notifications)
+let ImagePicker: typeof import('expo-image-picker') | null = null;
+let Notifications: typeof import('expo-notifications') | null = null;
+try { ImagePicker = require('expo-image-picker'); } catch { /* expo-image-picker 미설치 */ }
+// expo-notifications은 개발 빌드(npx expo run:android)에서만 동작
+// Expo Go에서는 자동으로 비활성화
+try {
+    const n = require('expo-notifications');
+    // Expo Go 환경 감지 (Constants.appOwnership === 'expo')
+    const Constants = require('expo-constants').default;
+    if (Constants?.appOwnership !== 'expo') {
+        Notifications = n;
+    }
+} catch { /* expo-notifications 미설치 또는 Expo Go */ }
 
 const { width, height } = Dimensions.get('window');
 const RECENT_PLACES_KEY = 'recent_places';
 const FAVORITE_PLACES_KEY = 'favorite_places';
 const REGISTRY_CACHE_KEY = 'registry_cache';
+const OFFLINE_QUEUE_KEY = 'offline_queue';
+const BUILDING_FILTER_KEY = 'building_filter';
+const NOTIFICATION_STORE_KEY = 'notification_store';
+
+// 태양광 설치 기준 면적 (㎡)
+const SOLAR_MIN_AREA_SMALL = 200;   // 소형 (필터 1단계)
+const SOLAR_MIN_AREA_MEDIUM = 500;  // 중형 (필터 2단계)
+const SOLAR_MIN_AREA_LARGE = 1000;  // 대형 (필터 3단계)
 
 // React Query 클라이언트
 const queryClient = new QueryClient({
@@ -39,6 +64,125 @@ interface RegistryCacheItem {
     owner: string;
     address: string;
     cachedAt: number;
+}
+
+// ===== API 응답 타입 =====
+
+interface VWorldAddress {
+    road: string;
+    parcel: string;
+}
+
+interface VWorldPoint {
+    x: string;
+    y: string;
+}
+
+interface VWorldPlaceItem {
+    id: string;
+    title: string;
+    address: VWorldAddress;
+    point: VWorldPoint;
+    category?: string;
+}
+
+interface VWorldSearchResponse {
+    response: {
+        status: string;
+        result?: {
+            items: VWorldPlaceItem[];
+        };
+    };
+}
+
+interface VWorldFeatureProperties {
+    UQ011?: string;   // 용도지역명
+    JIMOK?: string;   // 지목명
+    [key: string]: string | undefined;
+}
+
+interface VWorldFeature {
+    properties: VWorldFeatureProperties;
+}
+
+interface TilkoSearchItem {
+    pin?: string;
+    wk_pin?: string;
+    real_cls_cd?: string;
+    real_indi_cont?: string;
+    pin_mid_spe_yn?: string;
+}
+
+interface DaumPostcodeData {
+    roadAddress: string;
+    jibunAddress: string;
+    autoJibunAddress: string;
+    [key: string]: string;
+}
+
+interface DaumWebViewMessageEvent {
+    nativeEvent: { data: string };
+}
+
+// 등기 열람 이력 레코드 (registry_views 테이블)
+interface RegistryViewRecord {
+    id: string;
+    lat: number;
+    lng: number;
+    road_address: string | null;
+    jibun_address: string | null;
+    owner_name: string | null;
+    owner_address: string | null;
+    xml_data: string | null;
+    viewed_at: string;
+}
+
+// 토지이용계획 정보
+type SolarFeasibilityLevel = 'favorable' | 'neutral' | 'restricted';
+
+interface LandUseInfo {
+    zoning: string;                      // 용도지역
+    isSolarFeasible: boolean;
+    feasibilityNote: string;
+    feasibilityLevel: SolarFeasibilityLevel;
+}
+
+// 건물 필터 설정
+interface BuildingFilter {
+    minArea: number;                // 최소 면적 ㎡ (0 = 필터없음)
+    selectedCategories: string[];   // 선택된 카테고리 (공장/창고/물류)
+    onlyHighPotential: boolean;     // 고잠재력 (면적 500㎡+) 만 표시
+}
+
+const DEFAULT_FILTER: BuildingFilter = {
+    minArea: 0,
+    selectedCategories: ['공장', '창고', '물류'],
+    onlyHighPotential: false,
+};
+
+// 마커 클러스터
+interface PropertyCluster {
+    id: string;
+    coordinate: { latitude: number; longitude: number };
+    count: number;
+    items: Property[];
+    dominantStatus: SalesStatus;
+}
+
+// 오프라인 큐 항목
+interface OfflineQueueItem {
+    id: string;
+    type: 'updateSalesStatus' | 'saveIROSView';
+    payload: Record<string, unknown>;
+    queuedAt: number;
+}
+
+// 알림 저장소
+interface NotificationStore {
+    [propertyId: string]: {
+        notificationId: string;
+        scheduledDate: string;
+    };
 }
 
 interface Building {
@@ -169,6 +313,13 @@ interface MapStore {
     mapType: MapType;
     setMapType: (type: MapType) => void;
 
+    // 스마트 필터
+    buildingFilter: BuildingFilter;
+    setBuildingFilter: (filter: BuildingFilter) => void;
+
+    // 클러스터링 활성화 (줌 레벨 임계치 기반 자동 전환)
+    clusteringEnabled: boolean;
+    setClusteringEnabled: (enabled: boolean) => void;
 
     fetchBuildings: (region: Region, page?: number) => Promise<void>;
     saveRecentPlace: (building: Building) => Promise<void>;
@@ -201,6 +352,15 @@ const useMapStore = create<MapStore>((set, get) => ({
 
     mapType: 'standard',
     setMapType: (type) => set({ mapType: type }),
+
+    buildingFilter: DEFAULT_FILTER,
+    setBuildingFilter: (filter) => {
+        set({ buildingFilter: filter });
+        AsyncStorage.setItem(BUILDING_FILTER_KEY, JSON.stringify(filter)).catch(() => {});
+    },
+
+    clusteringEnabled: true,
+    setClusteringEnabled: (enabled) => set({ clusteringEnabled: enabled }),
 
 
     fetchBuildings: async (currentRegion: Region, page = 1) => {
@@ -235,12 +395,12 @@ const useMapStore = create<MapStore>((set, get) => ({
             const newBuildings: Building[] = [];
             let totalItemCount = 0;
 
-            responses.forEach((json) => {
+            responses.forEach((json: VWorldSearchResponse | null) => {
                 if (!json || json.response.status === "NOT_FOUND" || !json.response.result) return;
                 const items = json.response.result.items;
                 totalItemCount += items.length;
 
-                items.forEach((item: any) => {
+                items.forEach((item: VWorldPlaceItem) => {
                     if (existingIds.has(item.id) || existingNames.has(item.title)) return;
 
                     const itemLat = parseFloat(item.point.y);
@@ -284,7 +444,7 @@ const useMapStore = create<MapStore>((set, get) => ({
                 const fallbackRes = await fetch(`https://api.vworld.kr/req/search?service=search&request=search&version=2.0&crs=EPSG:4326&size=20&page=1&query=${encodeURIComponent('산업')}&type=place&format=json&errorformat=json&bbox=${bbox}&key=${VWORLD_API_KEY}`);
                 const fallbackJson = await fallbackRes.json();
                 if (fallbackJson.response.status === 'OK' && fallbackJson.response.result) {
-                    fallbackJson.response.result.items.forEach((item: any) => {
+                    fallbackJson.response.result.items.forEach((item: VWorldPlaceItem) => {
                         const itemLat = parseFloat(item.point.y);
                         const itemLng = parseFloat(item.point.x);
                         const R = 6371e3;
@@ -464,6 +624,249 @@ async function geocodeAddressToCoord(address: string): Promise<{ lat: number; ln
     return null;
 }
 
+// ===== 토지이용계획 API (VWorld) =====
+
+async function fetchLandUseInfo(lat: number, lng: number): Promise<LandUseInfo> {
+    const defaultResult: LandUseInfo = {
+        zoning: '',
+        isSolarFeasible: true,
+        feasibilityNote: '정보를 불러올 수 없습니다',
+        feasibilityLevel: 'neutral',
+    };
+
+    try {
+        // VWorld 용도지역 데이터 조회 (LT_C_UQ111)
+        const url = `https://api.vworld.kr/req/data?service=data&request=GetFeature&data=LT_C_UQ111&geometry=false&attribute=true&key=${VWORLD_API_KEY}&geomfilter=POINT(${lng}+${lat})&crs=EPSG:4326&format=json&size=1`;
+        const res = await fetch(url);
+        const json = await res.json();
+
+        let zoning = '';
+        if (json.response?.status === 'OK') {
+            const features: VWorldFeature[] = json.response?.result?.featureCollection?.features || [];
+            if (features.length > 0) {
+                zoning = features[0].properties.UQ011 || features[0].properties.uq011 || '';
+            }
+        }
+
+        // 태양광 설치 가능성 판단
+        const restrictedKeywords = ['보전녹지', '자연환경보전', '개발제한'];
+        const favorableKeywords = ['공업', '계획관리', '생산관리', '농림'];
+        const limitedKeywords = ['농림', '자연녹지', '생산녹지'];
+
+        let isSolarFeasible = true;
+        let feasibilityNote = '';
+        let feasibilityLevel: SolarFeasibilityLevel = 'neutral';
+
+        if (!zoning) {
+            feasibilityNote = '용도지역 정보를 확인할 수 없습니다';
+            feasibilityLevel = 'neutral';
+        } else if (restrictedKeywords.some(k => zoning.includes(k))) {
+            isSolarFeasible = false;
+            feasibilityNote = '설치 제한 가능성 높음 (관할청 확인 필요)';
+            feasibilityLevel = 'restricted';
+        } else if (favorableKeywords.some(k => zoning.includes(k)) && !limitedKeywords.some(k => zoning.includes(k))) {
+            feasibilityNote = '태양광 설치에 유리한 용도지역';
+            feasibilityLevel = 'favorable';
+        } else if (limitedKeywords.some(k => zoning.includes(k))) {
+            feasibilityNote = '이격거리 규제 등 조건부 가능';
+            feasibilityLevel = 'neutral';
+        } else if (zoning.includes('주거') || zoning.includes('상업')) {
+            feasibilityNote = '지붕형 설치 가능 (건물 유형 확인 필요)';
+            feasibilityLevel = 'neutral';
+        } else {
+            feasibilityNote = '관할 기관에 설치 가능 여부 확인 필요';
+            feasibilityLevel = 'neutral';
+        }
+
+        return { zoning, isSolarFeasible, feasibilityNote, feasibilityLevel };
+    } catch (_) {
+        return defaultResult;
+    }
+}
+
+// ===== 오프라인 큐 =====
+
+async function addToOfflineQueue(type: OfflineQueueItem['type'], payload: Record<string, unknown>): Promise<void> {
+    try {
+        const json = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+        const queue: OfflineQueueItem[] = json ? JSON.parse(json) : [];
+        queue.push({ id: `q-${Date.now()}`, type, payload, queuedAt: Date.now() });
+        await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    } catch (e) {
+        console.error('Queue add failed', e);
+    }
+}
+
+async function syncOfflineQueue(): Promise<number> {
+    try {
+        const json = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+        if (!json) return 0;
+        const queue: OfflineQueueItem[] = JSON.parse(json);
+        if (queue.length === 0) return 0;
+
+        const failed: OfflineQueueItem[] = [];
+        for (const item of queue) {
+            try {
+                if (item.type === 'updateSalesStatus') {
+                    const { propertyId, status, memo } = item.payload as { propertyId: string; status: SalesStatus; memo: string | null };
+                    await updateSalesStatus(propertyId, status, memo);
+                } else if (item.type === 'saveIROSView') {
+                    await saveIROSView(item.payload as Parameters<typeof saveIROSView>[0]);
+                }
+            } catch {
+                failed.push(item);
+            }
+        }
+        await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(failed));
+        return queue.length - failed.length;
+    } catch {
+        return 0;
+    }
+}
+
+// ===== 마커 클러스터링 알고리즘 =====
+
+function clusterProperties(properties: Property[], latitudeDelta: number): PropertyCluster[] {
+    const clusterRadius = latitudeDelta * 1.2;
+    const clusters: PropertyCluster[] = [];
+    const assigned = new Set<string>();
+
+    properties.forEach(prop => {
+        if (assigned.has(prop.property_id)) return;
+
+        const nearby = properties.filter(other => {
+            if (assigned.has(other.property_id)) return false;
+            return Math.abs(prop.lat - other.lat) < clusterRadius
+                && Math.abs(prop.lng - other.lng) < clusterRadius;
+        });
+
+        nearby.forEach(p => assigned.add(p.property_id));
+
+        const avgLat = nearby.reduce((s, p) => s + p.lat, 0) / nearby.length;
+        const avgLng = nearby.reduce((s, p) => s + p.lng, 0) / nearby.length;
+
+        const counts = nearby.reduce((acc, p) => {
+            acc[p.sales_status] = (acc[p.sales_status] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+        const dominantStatus = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || '미접촉') as SalesStatus;
+
+        clusters.push({
+            id: `cluster-${prop.property_id}`,
+            coordinate: { latitude: avgLat, longitude: avgLng },
+            count: nearby.length,
+            items: nearby,
+            dominantStatus,
+        });
+    });
+    return clusters;
+}
+
+// ===== 사진 업로드 (Supabase Storage) =====
+
+async function uploadPropertyPhoto(propertyId: string, imageUri: string): Promise<string | null> {
+    try {
+        const response = await fetch(imageUri);
+        const blob = await response.blob();
+        const ext = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
+        const fileName = `${propertyId}/${Date.now()}.${ext}`;
+
+        const { data, error } = await supabase.storage
+            .from('property-photos')
+            .upload(fileName, blob, { contentType: `image/${ext}`, upsert: false });
+
+        if (error) throw error;
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('property-photos')
+            .getPublicUrl(data.path);
+
+        return publicUrl;
+    } catch (e) {
+        console.error('Photo upload failed', e);
+        return null;
+    }
+}
+
+async function deletePropertyPhoto(path: string): Promise<void> {
+    const fileName = path.split('/property-photos/')[1];
+    if (!fileName) return;
+    await supabase.storage.from('property-photos').remove([fileName]);
+}
+
+async function updatePropertyPhotoUrls(propertyId: string, urls: string[]): Promise<void> {
+    await supabase.from('properties')
+        .update({ photo_urls: urls })
+        .eq('property_id', propertyId);
+}
+
+// ===== Push 알림 스케줄링 =====
+
+async function scheduleFollowUpNotification(
+    propertyId: string,
+    propertyName: string,
+    date: Date,
+): Promise<string | null> {
+    if (!Notifications) {
+        Alert.alert('알림 불가', 'expo-notifications 패키지 설치가 필요합니다.\nnpx expo install expo-notifications');
+        return null;
+    }
+    try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('권한 거부', '알림 권한이 필요합니다. 설정에서 허용해 주세요.');
+            return null;
+        }
+
+        const notifId = await Notifications.scheduleNotificationAsync({
+            content: {
+                title: '태양광 영업 리마인더',
+                body: `${propertyName} - 오늘이 연락 예정일입니다`,
+                data: { propertyId },
+                sound: true,
+            },
+            trigger: { date, type: 'date' } as import('expo-notifications').DateTriggerInput,
+        });
+
+        // 알림 ID 저장
+        const storeJson = await AsyncStorage.getItem(NOTIFICATION_STORE_KEY);
+        const store: NotificationStore = storeJson ? JSON.parse(storeJson) : {};
+        store[propertyId] = { notificationId: notifId, scheduledDate: date.toISOString() };
+        await AsyncStorage.setItem(NOTIFICATION_STORE_KEY, JSON.stringify(store));
+
+        return notifId;
+    } catch (e: any) {
+        Alert.alert('알림 설정 실패', e.message);
+        return null;
+    }
+}
+
+async function cancelFollowUpNotification(propertyId: string): Promise<void> {
+    if (!Notifications) return;
+    try {
+        const storeJson = await AsyncStorage.getItem(NOTIFICATION_STORE_KEY);
+        if (!storeJson) return;
+        const store: NotificationStore = JSON.parse(storeJson);
+        const entry = store[propertyId];
+        if (entry?.notificationId) {
+            await Notifications.cancelScheduledNotificationAsync(entry.notificationId);
+            delete store[propertyId];
+            await AsyncStorage.setItem(NOTIFICATION_STORE_KEY, JSON.stringify(store));
+        }
+    } catch { }
+}
+
+async function getScheduledNotification(propertyId: string): Promise<{ notificationId: string; scheduledDate: string } | null> {
+    try {
+        const storeJson = await AsyncStorage.getItem(NOTIFICATION_STORE_KEY);
+        if (!storeJson) return null;
+        const store: NotificationStore = JSON.parse(storeJson);
+        return store[propertyId] || null;
+    } catch {
+        return null;
+    }
+}
+
 async function fetchPNU(lat: number, lng: number): Promise<{ pnu: string; jibunAddr: string }> {
     const url = `https://api.vworld.kr/req/address?service=address&request=getAddress&version=2.0&crs=EPSG:4326&point=${lng},${lat}&type=PARCEL&format=json&key=${VWORLD_API_KEY}`;
     const response = await fetch(url);
@@ -500,13 +903,676 @@ async function fetchUniqueNoByAddress(addr: string): Promise<{ uniqueNo: string;
     }
     const dataList = (searchJson.Result && searchJson.Result.DataList) || searchJson.DataList || [];
     if (dataList.length === 0) throw new Error('해당 주소에 대한 등기 정보를 찾을 수 없습니다.');
-    return dataList.map((item: any) => ({
+    return dataList.map((item: TilkoSearchItem) => ({
         uniqueNo: item.pin || item.wk_pin || '',
         realtyType: item.real_cls_cd || '',
         addrFull: item.real_indi_cont || '',
         isSpecial: item.pin_mid_spe_yn === 'Y',
     }));
 }
+
+// ===== 온라인 상태 훅 =====
+
+function useOnlineStatus(): boolean {
+    const [isOnline, setIsOnline] = useState(true);
+
+    useEffect(() => {
+        let mounted = true;
+        const check = async () => {
+            // AbortSignal.timeout은 Hermes에서 미지원 → 수동 AbortController 사용
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 5000);
+            try {
+                await fetch('https://dapi.kakao.com', {
+                    method: 'HEAD',
+                    cache: 'no-store',
+                    signal: controller.signal,
+                });
+                clearTimeout(timer);
+                if (mounted) setIsOnline(true);
+            } catch {
+                clearTimeout(timer);
+                if (mounted) setIsOnline(false);
+            }
+        };
+
+        check();
+        const interval = setInterval(check, 30000);
+        return () => { mounted = false; clearInterval(interval); };
+    }, []);
+
+    return isOnline;
+}
+
+// ===== 오프라인 배너 컴포넌트 =====
+
+// GPS 버튼 반대편(왼쪽) 말풍선 형태 온/오프라인 표시
+const NetworkBubble = ({ isOnline }: { isOnline: boolean }) => {
+    const [prevOnline, setPrevOnline] = useState(isOnline);
+    const [showOnline, setShowOnline] = useState(false);
+    const fadeAnim = useRef(new Animated.Value(isOnline ? 0 : 1)).current;
+    const onlineFadeAnim = useRef(new Animated.Value(0)).current;
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        if (prevOnline === isOnline) return;
+        setPrevOnline(isOnline);
+
+        if (isOnline) {
+            // 오프라인 버블 숨기기
+            Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+            // 온라인 버블 잠깐 표시 후 사라짐
+            setShowOnline(true);
+            Animated.sequence([
+                Animated.timing(onlineFadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+                Animated.delay(2000),
+                Animated.timing(onlineFadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+            ]).start(() => setShowOnline(false));
+        } else {
+            // 오프라인 버블 표시
+            Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+        }
+    }, [isOnline]);
+
+    return (
+        <>
+            {/* 오프라인 말풍선 */}
+            {!isOnline && (
+                <Animated.View style={[offlineStyles.bubble, offlineStyles.offlineBubble, { opacity: fadeAnim }]} pointerEvents="none">
+                    <Text style={offlineStyles.bubbleText}>오프라인</Text>
+                    <View style={offlineStyles.offlineTail} />
+                </Animated.View>
+            )}
+            {/* 온라인 전환 말풍선 */}
+            {showOnline && (
+                <Animated.View style={[offlineStyles.bubble, offlineStyles.onlineBubble, { opacity: onlineFadeAnim }]} pointerEvents="none">
+                    <Text style={offlineStyles.bubbleText}>온라인</Text>
+                    <View style={offlineStyles.onlineTail} />
+                </Animated.View>
+            )}
+        </>
+    );
+};
+
+// 기존 OfflineBanner는 더 이상 사용하지 않지만 타입 호환을 위해 유지
+const OfflineBanner = ({ isOnline, pendingCount }: { isOnline: boolean; pendingCount: number }) => null;
+
+const offlineStyles = StyleSheet.create({
+    bubble: {
+        position: 'absolute',
+        bottom: 135,
+        left: 20,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        elevation: 6,
+        zIndex: 20,
+    },
+    offlineBubble: { backgroundColor: '#E53935' },
+    onlineBubble: { backgroundColor: '#2E7D32' },
+    bubbleText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    offlineTail: {
+        position: 'absolute',
+        bottom: -7,
+        left: 18,
+        width: 0,
+        height: 0,
+        borderLeftWidth: 7,
+        borderRightWidth: 7,
+        borderTopWidth: 8,
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+        borderTopColor: '#E53935',
+    },
+    onlineTail: {
+        position: 'absolute',
+        bottom: -7,
+        left: 18,
+        width: 0,
+        height: 0,
+        borderLeftWidth: 7,
+        borderRightWidth: 7,
+        borderTopWidth: 8,
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+        borderTopColor: '#2E7D32',
+    },
+    // 아래는 기존 코드 호환용 (사용 안함)
+    banner: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 44,
+        backgroundColor: '#E53935',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        zIndex: 999,
+    },
+    bannerIcon: { fontSize: 18 },
+    bannerText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+});
+
+// ===== 카카오 로드뷰 모달 =====
+
+function buildStreetViewHTML(lat: number, lng: number, kakaoKey: string): string {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    html,body{width:100%;height:100%;background:#000;}
+    #roadview{width:100%;height:100%;}
+    #fallback{display:none;padding:40px 20px;color:#fff;text-align:center;font-size:15px;background:#222;height:100%;justify-content:center;align-items:center;flex-direction:column;}
+    #fallback-icon{font-size:48px;margin-bottom:16px;}
+  </style>
+</head>
+<body>
+  <div id="roadview"></div>
+  <div id="fallback">
+    <div id="fallback-icon">🗺️</div>
+    <p>이 위치에서는 로드뷰를 제공하지 않습니다.<br><small style="color:#aaa;margin-top:8px;display:block;">건물 외부 또는 주요 도로 주변으로 이동해 다시 시도하세요.</small></p>
+  </div>
+  <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoKey}&libraries=services"></script>
+  <script>
+    try {
+      var rv = new kakao.maps.Roadview(document.getElementById('roadview'));
+      var rvc = new kakao.maps.RoadviewClient();
+      rvc.getNearestPanoId(new kakao.maps.LatLng(${lat},${lng}), 50, function(panoId) {
+        if (panoId === null) {
+          document.getElementById('roadview').style.display='none';
+          document.getElementById('fallback').style.display='flex';
+        } else {
+          rv.setPanoId(panoId, new kakao.maps.LatLng(${lat},${lng}));
+        }
+      });
+    } catch(e) {
+      document.getElementById('roadview').style.display='none';
+      document.getElementById('fallback').style.display='flex';
+      document.getElementById('fallback-icon').innerText='⚠️';
+      document.querySelector('#fallback p').innerText='로드뷰 로드 오류: '+e.message;
+    }
+  </script>
+</body>
+</html>`;
+}
+
+const StreetViewModal = ({
+    visible,
+    onClose,
+    latitude,
+    longitude,
+    title,
+}: {
+    visible: boolean;
+    onClose: () => void;
+    latitude: number;
+    longitude: number;
+    title?: string;
+}) => {
+    const kakaoKey = KAKAO_API_KEY || '';
+    const html = useMemo(
+        () => buildStreetViewHTML(latitude, longitude, kakaoKey),
+        [latitude, longitude, kakaoKey],
+    );
+
+    return (
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+            <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
+                <View style={svStyles.header}>
+                    <Text style={svStyles.title} numberOfLines={1}>
+                        🗺️ {title || '로드뷰'}
+                    </Text>
+                    <TouchableOpacity onPress={onClose} style={svStyles.closeBtn}>
+                        <Text style={svStyles.closeTxt}>닫기</Text>
+                    </TouchableOpacity>
+                </View>
+                {!kakaoKey ? (
+                    <View style={svStyles.noKey}>
+                        <Text style={svStyles.noKeyText}>
+                            .env에 KAKAO_API_KEY를 설정해 주세요.{'\n'}
+                            (kakao developers → 내 애플리케이션 → JavaScript 키)
+                        </Text>
+                    </View>
+                ) : (
+                    <WebView
+                        source={{ html, baseUrl: 'https://dapi.kakao.com' }}
+                        style={{ flex: 1 }}
+                        javaScriptEnabled
+                        domStorageEnabled
+                        originWhitelist={['*']}
+                        mixedContentMode="always"
+                        startInLoadingState
+                        renderLoading={() => (
+                            <View style={svStyles.loading}>
+                                <ActivityIndicator color="#fff" size="large" />
+                                <Text style={{ color: '#fff', marginTop: 12 }}>로드뷰 불러오는 중...</Text>
+                            </View>
+                        )}
+                    />
+                )}
+            </SafeAreaView>
+        </Modal>
+    );
+};
+
+const svStyles = StyleSheet.create({
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#1A1A1A',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
+    title: { color: '#fff', fontSize: 15, fontWeight: '700', flex: 1, marginRight: 12 },
+    closeBtn: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#444', borderRadius: 8 },
+    closeTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    loading: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
+    noKey: { flex: 1, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center', padding: 32 },
+    noKeyText: { color: '#fff', fontSize: 14, lineHeight: 24, textAlign: 'center' },
+});
+
+// ===== 스마트 필터 바 =====
+
+const FILTER_CATEGORIES = ['공장', '창고', '물류'];
+const FILTER_AREA_OPTIONS = [
+    { label: '전체', value: 0 },
+    { label: '200㎡+', value: SOLAR_MIN_AREA_SMALL },
+    { label: '500㎡+', value: SOLAR_MIN_AREA_MEDIUM },
+    { label: '1000㎡+', value: SOLAR_MIN_AREA_LARGE },
+];
+
+const FilterBar = ({
+    filter,
+    onChange,
+    totalCount,
+    filteredCount,
+}: {
+    filter: BuildingFilter;
+    onChange: (f: BuildingFilter) => void;
+    totalCount: number;
+    filteredCount: number;
+}) => {
+    const [expanded, setExpanded] = useState(false);
+
+    const toggleCategory = (cat: string) => {
+        const next = filter.selectedCategories.includes(cat)
+            ? filter.selectedCategories.filter(c => c !== cat)
+            : [...filter.selectedCategories, cat];
+        if (next.length === 0) return; // 최소 1개 유지
+        onChange({ ...filter, selectedCategories: next });
+    };
+
+    const hasActiveFilter = filter.minArea > 0
+        || filter.onlyHighPotential
+        || filter.selectedCategories.length < FILTER_CATEGORIES.length;
+
+    return (
+        <View style={filterStyles.wrapper}>
+            <TouchableOpacity
+                style={[filterStyles.header, hasActiveFilter && filterStyles.headerActive]}
+                onPress={() => setExpanded(e => !e)}
+            >
+                <Text style={filterStyles.headerIcon}>{hasActiveFilter ? '🔆' : '🔽'}</Text>
+                <Text style={[filterStyles.headerText, hasActiveFilter && { color: '#1565C0' }]}>
+                    필터{hasActiveFilter ? ' (적용중)' : ''}
+                </Text>
+                <Text style={filterStyles.countText}>{filteredCount}/{totalCount}건</Text>
+                {hasActiveFilter && (
+                    <TouchableOpacity
+                        onPress={() => onChange(DEFAULT_FILTER)}
+                        style={filterStyles.resetBtn}
+                    >
+                        <Text style={filterStyles.resetText}>초기화</Text>
+                    </TouchableOpacity>
+                )}
+            </TouchableOpacity>
+
+            {expanded && (
+                <View style={filterStyles.panel}>
+                    {/* 카테고리 */}
+                    <Text style={filterStyles.sectionLabel}>건물 유형</Text>
+                    <View style={filterStyles.chipRow}>
+                        {FILTER_CATEGORIES.map(cat => {
+                            const active = filter.selectedCategories.includes(cat);
+                            return (
+                                <TouchableOpacity
+                                    key={cat}
+                                    style={[filterStyles.chip, active && filterStyles.chipActive]}
+                                    onPress={() => toggleCategory(cat)}
+                                >
+                                    <Text style={[filterStyles.chipText, active && filterStyles.chipTextActive]}>
+                                        {cat}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    {/* 최소 면적 */}
+                    <Text style={filterStyles.sectionLabel}>최소 면적 (Supabase 매물)</Text>
+                    <View style={filterStyles.chipRow}>
+                        {FILTER_AREA_OPTIONS.map(opt => (
+                            <TouchableOpacity
+                                key={opt.value}
+                                style={[filterStyles.chip, filter.minArea === opt.value && filterStyles.chipActive]}
+                                onPress={() => onChange({ ...filter, minArea: opt.value })}
+                            >
+                                <Text style={[filterStyles.chipText, filter.minArea === opt.value && filterStyles.chipTextActive]}>
+                                    {opt.label}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {/* 고잠재력 토글 */}
+                    <TouchableOpacity
+                        style={filterStyles.toggleRow}
+                        onPress={() => onChange({ ...filter, onlyHighPotential: !filter.onlyHighPotential })}
+                    >
+                        <Text style={filterStyles.toggleLabel}>
+                            ⚡ 고잠재력만 보기 (500㎡+ 공장/창고)
+                        </Text>
+                        <View style={[filterStyles.toggle, filter.onlyHighPotential && filterStyles.toggleOn]}>
+                            <View style={[filterStyles.toggleThumb, filter.onlyHighPotential && filterStyles.toggleThumbOn]} />
+                        </View>
+                    </TouchableOpacity>
+                </View>
+            )}
+        </View>
+    );
+};
+
+const filterStyles = StyleSheet.create({
+    wrapper: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        gap: 8,
+    },
+    headerActive: { backgroundColor: '#E3F2FD' },
+    headerIcon: { fontSize: 16 },
+    headerText: { fontSize: 14, color: '#555', fontWeight: '600', flex: 1 },
+    countText: { fontSize: 12, color: '#888' },
+    resetBtn: { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#1565C0', borderRadius: 8 },
+    resetText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    panel: { paddingHorizontal: 14, paddingBottom: 14 },
+    sectionLabel: { fontSize: 12, color: '#888', fontWeight: '600', marginBottom: 8, marginTop: 10 },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: '#ddd', backgroundColor: '#fff' },
+    chipActive: { borderColor: '#1565C0', backgroundColor: '#1565C0' },
+    chipText: { fontSize: 13, color: '#555', fontWeight: '600' },
+    chipTextActive: { color: '#fff' },
+    toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f0f0f0' },
+    toggleLabel: { fontSize: 13, color: '#333', flex: 1 },
+    toggle: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#ddd', padding: 2 },
+    toggleOn: { backgroundColor: '#1565C0' },
+    toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
+    toggleThumbOn: { transform: [{ translateX: 20 }] },
+});
+
+// ===== 클러스터 마커 컴포넌트 =====
+
+const clusterStyles = StyleSheet.create({
+    bubble: {
+        borderWidth: 2,
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 5,
+    },
+    inner: { justifyContent: 'center', alignItems: 'center' },
+    count: { color: '#fff', fontWeight: '800' },
+});
+
+// ===== 사진 섹션 컴포넌트 (PropertyDetailModal 내부) =====
+
+const PhotoSection = ({
+    property,
+    onPhotosUpdated,
+}: {
+    property: Property;
+    onPhotosUpdated: (urls: string[]) => void;
+}) => {
+    const [photos, setPhotos] = useState<string[]>(property.photo_urls || []);
+    const [isUploading, setIsUploading] = useState(false);
+
+    const handlePickImage = async () => {
+        if (!ImagePicker) {
+            Alert.alert(
+                '패키지 필요',
+                'expo-image-picker가 필요합니다.\n\nnpx expo install expo-image-picker\n\n설치 후 앱을 재시작하세요.',
+            );
+            return;
+        }
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('권한 필요', '사진 접근 권한이 필요합니다.');
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.7,
+            allowsMultipleSelection: false,
+        });
+        if (result.canceled || !result.assets[0]) return;
+
+        setIsUploading(true);
+        try {
+            const url = await uploadPropertyPhoto(property.property_id, result.assets[0].uri);
+            if (url) {
+                const updated = [...photos, url];
+                setPhotos(updated);
+                await updatePropertyPhotoUrls(property.property_id, updated);
+                onPhotosUpdated(updated);
+            }
+        } catch (e: any) {
+            Alert.alert('업로드 실패', e.message);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleDeletePhoto = (url: string) => {
+        Alert.alert('사진 삭제', '이 사진을 삭제하시겠습니까?', [
+            { text: '취소', style: 'cancel' },
+            {
+                text: '삭제',
+                style: 'destructive',
+                onPress: async () => {
+                    const updated = photos.filter(p => p !== url);
+                    setPhotos(updated);
+                    await Promise.all([
+                        updatePropertyPhotoUrls(property.property_id, updated),
+                        deletePropertyPhoto(url),
+                    ]);
+                    onPhotosUpdated(updated);
+                },
+            },
+        ]);
+    };
+
+    return (
+        <View style={photoStyles.section}>
+            <View style={photoStyles.sectionHeader}>
+                <Text style={styles.propSectionTitle}>현장 사진</Text>
+                <TouchableOpacity
+                    style={[photoStyles.addBtn, isUploading && { opacity: 0.5 }]}
+                    onPress={handlePickImage}
+                    disabled={isUploading}
+                >
+                    {isUploading
+                        ? <ActivityIndicator size="small" color="#fff" />
+                        : <Text style={photoStyles.addBtnText}>+ 추가</Text>
+                    }
+                </TouchableOpacity>
+            </View>
+
+            {photos.length === 0 ? (
+                <Text style={photoStyles.empty}>현장 사진이 없습니다</Text>
+            ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {photos.map((url, idx) => (
+                        <TouchableOpacity
+                            key={idx}
+                            onLongPress={() => handleDeletePhoto(url)}
+                            style={photoStyles.photoWrap}
+                        >
+                            <Image source={{ uri: url }} style={photoStyles.photo} />
+                            <View style={photoStyles.deleteHint}>
+                                <Text style={photoStyles.deleteHintText}>길게 눌러 삭제</Text>
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            )}
+        </View>
+    );
+};
+
+const photoStyles = StyleSheet.create({
+    section: {
+        backgroundColor: '#F8F9FA',
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 12,
+    },
+    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    addBtn: { backgroundColor: '#4A90E2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+    addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    empty: { fontSize: 13, color: '#aaa', textAlign: 'center', paddingVertical: 16 },
+    photoWrap: { marginRight: 10, borderRadius: 8, overflow: 'hidden' },
+    photo: { width: 100, height: 100, borderRadius: 8 },
+    deleteHint: { backgroundColor: 'rgba(0,0,0,0.4)', paddingVertical: 3, alignItems: 'center' },
+    deleteHintText: { color: '#fff', fontSize: 10 },
+});
+
+// ===== 알림 스케줄 섹션 (PropertyDetailModal 내부) =====
+
+const NotificationSection = ({ property }: { property: Property }) => {
+    const [scheduledInfo, setScheduledInfo] = useState<{ notificationId: string; scheduledDate: string } | null>(null);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [dateInput, setDateInput] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        getScheduledNotification(property.property_id).then(setScheduledInfo);
+    }, [property.property_id]);
+
+    const handleSchedule = async () => {
+        const parsed = new Date(dateInput);
+        if (isNaN(parsed.getTime())) {
+            Alert.alert('날짜 오류', 'YYYY-MM-DD 형식으로 입력해 주세요.\n예: 2025-03-15');
+            return;
+        }
+        if (parsed <= new Date()) {
+            Alert.alert('날짜 오류', '미래 날짜를 입력해 주세요.');
+            return;
+        }
+        setIsSaving(true);
+        const name = property.building_name || property.road_address || '매물';
+        const notifId = await scheduleFollowUpNotification(property.property_id, name, parsed);
+        if (notifId) {
+            const info = { notificationId: notifId, scheduledDate: parsed.toISOString() };
+            setScheduledInfo(info);
+            // next_contact_date DB 업데이트
+            await supabase.from('properties').update({
+                next_contact_date: parsed.toISOString(),
+                notification_id: notifId,
+            }).eq('property_id', property.property_id);
+            Alert.alert('알림 설정 완료', `${parsed.toLocaleDateString('ko-KR')}에 알림이 예약되었습니다.`);
+            setShowDatePicker(false);
+        }
+        setIsSaving(false);
+    };
+
+    const handleCancel = async () => {
+        await cancelFollowUpNotification(property.property_id);
+        await supabase.from('properties').update({ next_contact_date: null, notification_id: null }).eq('property_id', property.property_id);
+        setScheduledInfo(null);
+        Alert.alert('알림 취소', '예약된 알림이 취소되었습니다.');
+    };
+
+    return (
+        <View style={notifStyles.section}>
+            <Text style={styles.propSectionTitle}>연락 예정 알림</Text>
+
+            {scheduledInfo ? (
+                <View style={notifStyles.scheduledBox}>
+                    <Text style={notifStyles.scheduledIcon}>🔔</Text>
+                    <View style={{ flex: 1 }}>
+                        <Text style={notifStyles.scheduledDate}>
+                            {new Date(scheduledInfo.scheduledDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        </Text>
+                        <Text style={notifStyles.scheduledSub}>알림 예약됨</Text>
+                    </View>
+                    <TouchableOpacity onPress={handleCancel} style={notifStyles.cancelBtn}>
+                        <Text style={notifStyles.cancelBtnText}>취소</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : showDatePicker ? (
+                <View style={notifStyles.pickerBox}>
+                    <TextInput
+                        style={notifStyles.dateInput}
+                        placeholder="YYYY-MM-DD (예: 2025-03-15)"
+                        value={dateInput}
+                        onChangeText={setDateInput}
+                        keyboardType="numeric"
+                        maxLength={10}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                        <TouchableOpacity style={notifStyles.cancelTextBtn} onPress={() => setShowDatePicker(false)}>
+                            <Text style={{ color: '#888' }}>취소</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[notifStyles.confirmBtn, isSaving && { opacity: 0.6 }]}
+                            onPress={handleSchedule}
+                            disabled={isSaving}
+                        >
+                            {isSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={notifStyles.confirmBtnText}>알림 예약</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            ) : (
+                <TouchableOpacity style={notifStyles.addBtn} onPress={() => setShowDatePicker(true)}>
+                    <Text style={notifStyles.addBtnText}>🔔 연락 예정일 알림 설정</Text>
+                </TouchableOpacity>
+            )}
+        </View>
+    );
+};
+
+const notifStyles = StyleSheet.create({
+    section: { backgroundColor: '#FFF8E1', borderRadius: 12, padding: 14, marginBottom: 12 },
+    scheduledBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    scheduledIcon: { fontSize: 24 },
+    scheduledDate: { fontSize: 15, fontWeight: '700', color: '#333' },
+    scheduledSub: { fontSize: 12, color: '#888', marginTop: 2 },
+    cancelBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#F44336', borderRadius: 8 },
+    cancelBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FF9800', borderRadius: 10, paddingVertical: 12 },
+    addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    pickerBox: {},
+    dateInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 15 },
+    cancelTextBtn: { flex: 1, alignItems: 'center', paddingVertical: 10 },
+    confirmBtn: { flex: 2, backgroundColor: '#FF9800', borderRadius: 8, alignItems: 'center', paddingVertical: 10 },
+    confirmBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+});
 
 // ===== PropertyDetailModal (Supabase 연동 영업관리 모달) =====
 
@@ -630,6 +1696,18 @@ const PropertyDetailModal = ({
                                 </Text>
                             </View>
                         )}
+
+                        {/* 현장 사진 */}
+                        <PhotoSection
+                            property={property}
+                            onPhotosUpdated={(urls) => {
+                                // React Query 캐시 무효화로 자동 반영
+                                qc.invalidateQueries({ queryKey: ['properties'] });
+                            }}
+                        />
+
+                        {/* 연락 예정 알림 */}
+                        <NotificationSection property={property} />
 
                         {/* 영업상태 관리 섹션 */}
                         <View style={styles.propSection}>
@@ -990,6 +2068,148 @@ const rxs = StyleSheet.create({
     closeBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
 
+// ===== 토지이용계획 패널 컴포넌트 =====
+
+const SOLAR_COLORS: Record<SolarFeasibilityLevel, { bg: string; border: string; text: string; badge: string }> = {
+    favorable: { bg: '#E8F5E9', border: '#2E7D32', text: '#1B5E20', badge: '#2E7D32' },
+    neutral:   { bg: '#E3F2FD', border: '#1565C0', text: '#0D47A1', badge: '#1565C0' },
+    restricted: { bg: '#FFEBEE', border: '#C62828', text: '#B71C1C', badge: '#C62828' },
+};
+
+const FEASIBILITY_ICONS: Record<SolarFeasibilityLevel, string> = {
+    favorable: '✅',
+    neutral: 'ℹ️',
+    restricted: '⚠️',
+};
+
+const LandUsePanel = ({
+    info,
+    isLoading,
+}: {
+    info: LandUseInfo | null;
+    isLoading: boolean;
+}) => {
+    if (isLoading) {
+        return (
+            <View style={landUseStyles.container}>
+                <View style={landUseStyles.loadingRow}>
+                    <ActivityIndicator size="small" color="#1565C0" />
+                    <Text style={landUseStyles.loadingText}>토지이용계획 조회 중...</Text>
+                </View>
+            </View>
+        );
+    }
+
+    if (!info) return null;
+
+    const colors = SOLAR_COLORS[info.feasibilityLevel];
+    const icon = FEASIBILITY_ICONS[info.feasibilityLevel];
+
+    return (
+        <View style={[landUseStyles.container, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+            <View style={landUseStyles.header}>
+                <Text style={landUseStyles.headerTitle}>토지이용계획 (태양광 검토)</Text>
+                <View style={[landUseStyles.badge, { backgroundColor: colors.badge }]}>
+                    <Text style={landUseStyles.badgeText}>
+                        {info.feasibilityLevel === 'favorable' ? '설치 유리' :
+                         info.feasibilityLevel === 'restricted' ? '제한 가능' : '확인 필요'}
+                    </Text>
+                </View>
+            </View>
+
+            {info.zoning ? (
+                <View style={landUseStyles.row}>
+                    <Text style={landUseStyles.label}>용도지역</Text>
+                    <Text style={[landUseStyles.value, { color: colors.text, fontWeight: '700' }]}>
+                        {info.zoning}
+                    </Text>
+                </View>
+            ) : null}
+
+            <View style={landUseStyles.noteRow}>
+                <Text style={{ fontSize: 14, marginRight: 6 }}>{icon}</Text>
+                <Text style={[landUseStyles.noteText, { color: colors.text }]}>
+                    {info.feasibilityNote}
+                </Text>
+            </View>
+
+            <Text style={landUseStyles.disclaimer}>
+                ※ 실제 설치 가능 여부는 관할 지자체에 반드시 확인하세요
+            </Text>
+        </View>
+    );
+};
+
+const landUseStyles = StyleSheet.create({
+    container: {
+        borderWidth: 1.5,
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 12,
+    },
+    loadingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    loadingText: {
+        fontSize: 13,
+        color: '#555',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    headerTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#333',
+    },
+    badge: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 10,
+    },
+    badgeText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    row: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginBottom: 6,
+    },
+    label: {
+        fontSize: 12,
+        color: '#666',
+        width: 60,
+    },
+    value: {
+        fontSize: 13,
+        flex: 1,
+    },
+    noteRow: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginTop: 4,
+        marginBottom: 6,
+    },
+    noteText: {
+        fontSize: 13,
+        flex: 1,
+        lineHeight: 18,
+    },
+    disclaimer: {
+        fontSize: 10,
+        color: '#888',
+        marginTop: 4,
+        fontStyle: 'italic',
+    },
+});
+
 // ===== 등기정보 Modal (기존 유지, 직접 Tilko API 조회) =====
 
 const RegistryInfoModal = ({ visible, onClose, marker }: {
@@ -1007,10 +2227,24 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
     const [directPin, setDirectPin] = useState('');
     const [xmlData, setXmlData] = useState('');
     const [xmlModalVisible, setXmlModalVisible] = useState(false);
+    const [landUseInfo, setLandUseInfo] = useState<LandUseInfo | null>(null);
+    const [isLoadingLandUse, setIsLoadingLandUse] = useState(false);
 
     useEffect(() => {
         if (visible && marker && !directMode) handleAutoSearch();
     }, [visible, marker]);
+
+    const loadLandUseInfoForMarker = async (lat: number, lng: number) => {
+        setIsLoadingLandUse(true);
+        try {
+            const info = await fetchLandUseInfo(lat, lng);
+            setLandUseInfo(info);
+        } catch (_) {
+            setLandUseInfo(null);
+        } finally {
+            setIsLoadingLandUse(false);
+        }
+    };
 
     const handleDirectSearch = async () => {
         const pin = directPin.trim();
@@ -1044,6 +2278,8 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                     owner_address: info.address !== '정보 없음' ? info.address : undefined,
                     xml_data: info.xmlData || undefined,
                 }).catch(console.warn);
+                // 토지이용계획 조회
+                loadLandUseInfoForMarker(marker.latitude, marker.longitude);
             }
         } catch (e: any) {
             setError(e.message || '등기정보 조회 중 오류가 발생했습니다.');
@@ -1107,6 +2343,8 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                 owner_address: info.address !== '정보 없음' ? info.address : undefined,
                 xml_data: info.xmlData || undefined,
             }).catch(console.warn);
+            // 토지이용계획 조회 (병렬)
+            loadLandUseInfoForMarker(marker.latitude, marker.longitude);
         } catch (e: any) {
             setError(e.message || '등기정보 조회 중 오류가 발생했습니다.');
             setStatus('');
@@ -1124,6 +2362,7 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
         setXmlData('');
         setDirectMode(false);
         setDirectPin('');
+        setLandUseInfo(null);
         onClose();
     };
 
@@ -1218,6 +2457,11 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                             ) : null}
                         </View>
                     ) : null}
+
+                    {/* 토지이용계획 패널 */}
+                    {result && (
+                        <LandUsePanel info={landUseInfo} isLoading={isLoadingLandUse} />
+                    )}
                     <RegistryXmlModal visible={xmlModalVisible} onClose={() => setXmlModalVisible(false)} xmlData={xmlData} />
 
                     <TouchableOpacity style={styles.modalCloseButton} onPress={handleClose}>
@@ -1362,7 +2606,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
             if (json.response.status === 'NOT_FOUND' || !json.response.result) {
                 setSearchResults([]);
             } else {
-                setSearchResults(json.response.result.items.map((item: any) => ({
+                setSearchResults(json.response.result.items.map((item: VWorldPlaceItem) => ({
                     id: item.id,
                     name: item.title || item.address?.road || item.address?.parcel,
                     address: item.address?.road || item.address?.parcel || '',
@@ -1379,8 +2623,8 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
     };
 
     // 다음 주소검색 완료 → 좌표 변환 후 pendingResult에 저장 (바로 리스트에 추가하지 않음)
-    const handleDaumMessage = async (event: any) => {
-        const data = JSON.parse(event.nativeEvent.data);
+    const handleDaumMessage = async (event: DaumWebViewMessageEvent) => {
+        const data: DaumPostcodeData = JSON.parse(event.nativeEvent.data);
         setDaumModalVisible(false);
         setIsLoading(true);
         const roadAddr = data.roadAddress || '';
@@ -1688,10 +2932,10 @@ const FavoritePlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onM
 // ===== RegistryHistoryScreen (등기 열람 이력) =====
 
 const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
-    const [records, setRecords] = useState<any[]>([]);
+    const [records, setRecords] = useState<RegistryViewRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchText, setSearchText] = useState('');
-    const [selectedRecord, setSelectedRecord] = useState<any | null>(null);
+    const [selectedRecord, setSelectedRecord] = useState<RegistryViewRecord | null>(null);
     const [detailVisible, setDetailVisible] = useState(false);
     const [histXmlModalVisible, setHistXmlModalVisible] = useState(false);
 
@@ -1735,6 +2979,35 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
         (r.owner_name || '').includes(searchText)
     );
 
+    const handleExportCSV = async () => {
+        const exportable = filtered.filter(r => r.owner_name && r.owner_address);
+        if (exportable.length === 0) {
+            Alert.alert('내보내기 불가', '소유자 정보가 확인된 항목이 없습니다.');
+            return;
+        }
+
+        const BOM = '\uFEFF'; // Excel UTF-8 호환을 위한 BOM
+        const headers = '소유자명,소유자주소,부동산주소(도로명),부동산주소(지번),열람일시';
+        const rows = exportable.map(r => [
+            `"${(r.owner_name || '').replace(/"/g, '""')}"`,
+            `"${(r.owner_address || '').replace(/"/g, '""')}"`,
+            `"${(r.road_address || '').replace(/"/g, '""')}"`,
+            `"${(r.jibun_address || '').replace(/"/g, '""')}"`,
+            `"${new Date(r.viewed_at).toLocaleString('ko-KR')}"`,
+        ].join(',')).join('\n');
+
+        const csvContent = BOM + headers + '\n' + rows;
+
+        try {
+            await Share.share({
+                title: `소유주 주소 목록 (${exportable.length}건)`,
+                message: csvContent,
+            });
+        } catch (e: any) {
+            Alert.alert('공유 실패', e.message);
+        }
+    };
+
     return (
         <View style={styles.subScreenContainer}>
             {/* 헤더 */}
@@ -1763,12 +3036,18 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
                 )}
             </View>
 
-            {/* 건수 요약 */}
+            {/* 건수 요약 + CSV 내보내기 */}
             {!isLoading && (
-                <View style={{ paddingHorizontal: 16, paddingVertical: 6, backgroundColor: '#F5F5F5' }}>
+                <View style={styles.historyToolbar}>
                     <Text style={{ fontSize: 12, color: '#888' }}>
                         총 {filtered.length}건 | 소유자 확인: {filtered.filter(r => r.owner_name).length}건
                     </Text>
+                    <TouchableOpacity
+                        style={styles.exportButton}
+                        onPress={handleExportCSV}
+                    >
+                        <Text style={styles.exportButtonText}>📋 CSV 내보내기</Text>
+                    </TouchableOpacity>
                 </View>
             )}
 
@@ -1889,10 +3168,19 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
                                 {selectedRecord.owner_name && selectedRecord.owner_address && (
                                     <View style={[styles.propSection, { backgroundColor: '#FFF8E1' }]}>
                                         <Text style={[styles.propSectionTitle, { color: '#E65100' }]}>우편 발송 정보</Text>
-                                        <Text style={{ fontSize: 14, color: '#E65100', lineHeight: 24 }}>
+                                        <Text style={{ fontSize: 14, color: '#E65100', lineHeight: 24, marginBottom: 10 }}>
                                             수신: {selectedRecord.owner_name}{'\n'}
                                             주소: {selectedRecord.owner_address}
                                         </Text>
+                                        <TouchableOpacity
+                                            style={styles.exportButton}
+                                            onPress={async () => {
+                                                const text = `소유자: ${selectedRecord.owner_name}\n주소: ${selectedRecord.owner_address}\n부동산: ${selectedRecord.road_address || selectedRecord.jibun_address || ''}`;
+                                                await Share.share({ title: '소유주 발송 정보', message: text });
+                                            }}
+                                        >
+                                            <Text style={styles.exportButtonText}>📤 발송 정보 공유</Text>
+                                        </TouchableOpacity>
                                     </View>
                                 )}
                             </ScrollView>
@@ -1944,7 +3232,7 @@ const MoreScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
                 onPress={() => setCurrentView('registry')}
             >
                 <Text style={[styles.menuButtonText, { color: '#1565C0' }]}>등기 열람 이력</Text>
-                <Text style={{ fontSize: 12, color: '#1976D2', marginTop: 2 }}>소유자 실명 · 실거주지 확인</Text>
+                <Text style={{ fontSize: 12, color: '#1976D2', marginTop: 2 }}>소유자 실명 · 실거주지 확인 · CSV 내보내기</Text>
             </TouchableOpacity>
         </View>
     );
@@ -1953,7 +3241,7 @@ const MoreScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
 // ===== BuildingListScreen =====
 
 const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
-    const { region, buildings, isLoading, isLoadingMore, fetchBuildings, lastFetchedRegion, page, hasMore, setRegion, setSelectedMarker, saveRecentPlace } = useMapStore();
+    const { region, buildings, isLoading, isLoadingMore, fetchBuildings, lastFetchedRegion, page, hasMore, setRegion, setSelectedMarker, saveRecentPlace, buildingFilter, setBuildingFilter } = useMapStore();
     const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
@@ -1992,6 +3280,23 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
         if (shouldFetch) fetchBuildings(region, 1);
     }, []);
 
+    // 스마트 필터 적용
+    const filteredBuildings = useMemo(() => {
+        return buildings.filter(b => {
+            // 카테고리 필터
+            if (buildingFilter.selectedCategories.length < FILTER_CATEGORIES.length) {
+                if (!b.category) return false;
+                if (!buildingFilter.selectedCategories.some(cat => b.category?.includes(cat))) return false;
+            }
+            // 고잠재력 필터 (카테고리 + 이름 기반 휴리스틱)
+            if (buildingFilter.onlyHighPotential) {
+                const isIndustrial = ['공장', '창고', '물류'].some(k => (b.category || b.name || '').includes(k));
+                if (!isIndustrial) return false;
+            }
+            return true;
+        });
+    }, [buildings, buildingFilter]);
+
     if (isLoading && buildings.length === 0) {
         return (
             <View style={styles.listContainer}>
@@ -2008,8 +3313,17 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
                     <Text style={styles.refreshText}>새로고침</Text>
                 </TouchableOpacity>
             </View>
+
+            {/* 스마트 필터 바 */}
+            <FilterBar
+                filter={buildingFilter}
+                onChange={setBuildingFilter}
+                totalCount={buildings.length}
+                filteredCount={filteredBuildings.length}
+            />
+
             <FlatList
-                data={buildings}
+                data={filteredBuildings}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
                     <View style={styles.listItemContainer}>
@@ -2056,16 +3370,100 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
 
 function AppContent() {
     const [currentTab, setCurrentTab] = useState('home');
-    const mapRef = useRef<MapView>(null);
-    const { region, setRegion, selectedMarker, setSelectedMarker, mapType, setMapType, propertyMarkers, setPropertyMarkers, saveRecentPlace } = useMapStore();
+    const mapRef = useRef<KakaoMapHandle>(null);
+    const { region, setRegion, selectedMarker, setSelectedMarker, mapType, setMapType, propertyMarkers, setPropertyMarkers, saveRecentPlace, buildingFilter, clusteringEnabled, setClusteringEnabled } = useMapStore();
 
     const [isMapLoading, setIsMapLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
+
+    // 대문(스플래시) 화면 상태
+    const [splashVisible, setSplashVisible] = useState(true);
+    const [splashRendered, setSplashRendered] = useState(true);
+    const [splashProgress, setSplashProgress] = useState(0);
+    const [splashStage, setSplashStage] = useState('앱 시작 중...');
+    const splashIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // 앱 시작 시 진행률 자동 증가 (SDK 로딩 전까지 0→35%)
+    useEffect(() => {
+        splashIntervalRef.current = setInterval(() => {
+            setSplashProgress(prev => {
+                if (prev >= 35) { clearInterval(splashIntervalRef.current!); return 35; }
+                return prev + 1.5;
+            });
+        }, 60);
+        return () => { if (splashIntervalRef.current) clearInterval(splashIntervalRef.current); };
+    }, []);
+
+    const handleMapLoadProgress = useCallback((stage: 'sdkLoaded' | 'mapReady') => {
+        if (stage === 'sdkLoaded') {
+            clearInterval(splashIntervalRef.current!);
+            setSplashStage('지도 초기화 중...');
+            // 35→80% 구간 자동 증가
+            splashIntervalRef.current = setInterval(() => {
+                setSplashProgress(prev => {
+                    if (prev >= 80) { clearInterval(splashIntervalRef.current!); return 80; }
+                    return prev + 1.2;
+                });
+            }, 60);
+        } else if (stage === 'mapReady') {
+            clearInterval(splashIntervalRef.current!);
+            setSplashStage('완료!');
+            setSplashProgress(100);
+            setTimeout(() => setSplashVisible(false), 500);
+        }
+    }, []);
+
     const [registryModalVisible, setRegistryModalVisible] = useState(false);
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
     const [propertyModalVisible, setPropertyModalVisible] = useState(false);
     const [registryRecord, setRegistryRecord] = useState<{ id: string; jibun_address?: string; xml_data?: string } | null>(null);
     const [isFavorite, setIsFavorite] = useState(false);
+
+    // 로드뷰 상태
+    const [streetViewVisible, setStreetViewVisible] = useState(false);
+
+    // 사용자 위치
+    const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+    // 오프라인 감지 + 큐
+    const isOnline = useOnlineStatus();
+    const [pendingQueueCount, setPendingQueueCount] = useState(0);
+
+    // 오프라인→온라인 복구 시 큐 동기화
+    useEffect(() => {
+        if (isOnline) {
+            syncOfflineQueue().then(synced => {
+                if (synced > 0) Alert.alert('동기화 완료', `오프라인 중 ${synced}건이 동기화되었습니다.`);
+            });
+        }
+        AsyncStorage.getItem(OFFLINE_QUEUE_KEY).then(json => {
+            if (json) setPendingQueueCount((JSON.parse(json) as OfflineQueueItem[]).length);
+        });
+    }, [isOnline]);
+
+    // 클러스터링: 줌 레벨 임계치
+    useEffect(() => {
+        setClusteringEnabled(region.latitudeDelta > 0.008);
+    }, [region.latitudeDelta]);
+
+    // 필터링된 Supabase 매물 (면적/고잠재력)
+    const filteredPropertyMarkers = useMemo(() => {
+        return propertyMarkers.filter(p => {
+            if (buildingFilter.minArea > 0 && (p.area === null || p.area < buildingFilter.minArea)) return false;
+            if (buildingFilter.onlyHighPotential) {
+                if (!p.area || p.area < SOLAR_MIN_AREA_MEDIUM) return false;
+                const purposeOk = ['공장', '창고', '물류'].some(k => (p.purpose || '').includes(k));
+                if (!purposeOk) return false;
+            }
+            return true;
+        });
+    }, [propertyMarkers, buildingFilter]);
+
+    // 클러스터 계산
+    const propertyClusters = useMemo(() => {
+        if (!clusteringEnabled) return null;
+        return clusterProperties(filteredPropertyMarkers, region.latitudeDelta);
+    }, [filteredPropertyMarkers, clusteringEnabled, region.latitudeDelta]);
 
     // Supabase 매물 쿼리 (위치 기반)
     const { data: properties, refetch: refetchProperties } = useQuery({
@@ -2081,21 +3479,27 @@ function AppContent() {
     // 앱 시작 시 위치 권한 요청 및 현재 위치 설정
     useEffect(() => {
         (async () => {
-            if (region.latitude === 37.5665 && region.longitude === 126.9780) {
-                try {
-                    const { status } = await Location.requestForegroundPermissionsAsync();
-                    if (status === 'granted') {
-                        const location = await Location.getCurrentPositionAsync({});
-                        setRegion({
-                            latitude: location.coords.latitude,
-                            longitude: location.coords.longitude,
-                            latitudeDelta: 0.002,
-                            longitudeDelta: 0.002,
-                        });
-                    }
-                } catch (error) {
-                    console.log("Location permission error");
+            try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') return;
+
+                // 1단계: 캐시된 마지막 위치로 즉시 이동 (빠름)
+                const last = await Location.getLastKnownPositionAsync({});
+                if (last) {
+                    const coords = { latitude: last.coords.latitude, longitude: last.coords.longitude };
+                    setUserLocation(coords);
+                    setRegion({ ...coords, latitudeDelta: 0.002, longitudeDelta: 0.002 });
+                    setTimeout(() => mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.002, longitudeDelta: 0.002 }), 300);
                 }
+
+                // 2단계: 정확한 현재 위치로 업데이트
+                const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                const coords = { latitude: location.coords.latitude, longitude: location.coords.longitude };
+                setUserLocation(coords);
+                setRegion({ ...coords, latitudeDelta: 0.002, longitudeDelta: 0.002 });
+                setTimeout(() => mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.002, longitudeDelta: 0.002 }), 300);
+            } catch (error) {
+                console.log("Location error:", error);
             }
         })();
     }, []);
@@ -2175,6 +3579,7 @@ function AppContent() {
                 latitudeDelta: 0.002,
                 longitudeDelta: 0.002,
             };
+            setUserLocation({ latitude: currentLocation.coords.latitude, longitude: currentLocation.coords.longitude });
             setTimeout(() => {
                 setRegion(newRegion);
                 setSelectedMarker(null);
@@ -2257,8 +3662,7 @@ function AppContent() {
         setTimeout(() => { setMapType(type); setIsMapLoading(false); }, 1500);
     };
 
-    const handleMapPress = async (e: any) => {
-        const coordinate = e.nativeEvent.coordinate;
+    const handleMapPress = async (coordinate: { latitude: number; longitude: number }) => {
         try {
             const addressResponse = await Location.reverseGeocodeAsync({
                 latitude: coordinate.latitude,
@@ -2293,54 +3697,85 @@ function AppContent() {
         setPropertyModalVisible(true);
     };
 
+    const handleMarkerPress = useCallback((markerId: string, markerType: string) => {
+        if (markerType === 'property') {
+            const propId = markerId.replace('prop-', '');
+            const prop = propertyMarkers.find(p => String(p.property_id) === propId);
+            if (prop) handlePropertyMarkerPress(prop);
+        } else if (markerType === 'cluster') {
+            const clusterId = markerId.replace('cluster-', '');
+            const cluster = propertyClusters?.find(c => c.id === clusterId);
+            if (cluster) {
+                mapRef.current?.animateToRegion({
+                    latitude: cluster.coordinate.latitude,
+                    longitude: cluster.coordinate.longitude,
+                    latitudeDelta: region.latitudeDelta / 3,
+                    longitudeDelta: region.longitudeDelta / 3,
+                }, 400);
+            }
+        }
+    }, [propertyMarkers, propertyClusters, region]);
+
+    const allMarkersForMap = useMemo(() => {
+        const items: import('./KakaoMapView').MapMarkerItem[] = [];
+        if (clusteringEnabled && propertyClusters) {
+            propertyClusters.forEach(cluster => {
+                if (cluster.count === 1) {
+                    const prop = cluster.items[0];
+                    items.push({
+                        id: `prop-${prop.property_id}`,
+                        latitude: prop.lat,
+                        longitude: prop.lng,
+                        type: 'property',
+                        color: SALES_STATUS_COLORS[prop.sales_status] || '#9E9E9E',
+                        title: prop.building_name || prop.road_address || '매물',
+                    });
+                } else {
+                    items.push({
+                        id: `cluster-${cluster.id}`,
+                        latitude: cluster.coordinate.latitude,
+                        longitude: cluster.coordinate.longitude,
+                        type: 'cluster',
+                        count: cluster.count,
+                        color: SALES_STATUS_COLORS[cluster.dominantStatus] || '#9E9E9E',
+                    });
+                }
+            });
+        } else {
+            filteredPropertyMarkers.forEach(prop => {
+                items.push({
+                    id: `prop-${prop.property_id}`,
+                    latitude: prop.lat,
+                    longitude: prop.lng,
+                    type: 'property',
+                    color: SALES_STATUS_COLORS[prop.sales_status] || '#9E9E9E',
+                    title: prop.building_name || prop.road_address || '매물',
+                });
+            });
+        }
+        return items;
+    }, [filteredPropertyMarkers, propertyClusters, clusteringEnabled]);
+
     const renderContent = () => {
         switch (currentTab) {
             case 'home':
                 return (
                     <View style={styles.mapContainer}>
-                        <MapView
+                        <KakaoMapView
                             ref={mapRef}
                             style={styles.map}
-                            provider={PROVIDER_DEFAULT}
+                            kakaoApiKey={KAKAO_API_KEY}
+                            vworldApiKey={VWORLD_API_KEY}
                             initialRegion={region}
                             onRegionChangeComplete={(r) => setRegion(r)}
-                            showsUserLocation={true}
-                            showsMyLocationButton={false}
                             onPress={handleMapPress}
-                        >
-                            {mapType === 'cadastral' && (
-                                <WMSTile
-                                    urlTemplate={`https://api.vworld.kr/req/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image/png&TRANSPARENT=true&LAYERS=lp_pa_cbnd_bonbun,lp_pa_cbnd_bubun&STYLES=,&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH={width}&HEIGHT={height}&key=${VWORLD_API_KEY}`}
-                                    maximumZ={19}
-                                    minimumZ={14}
-                                    zIndex={1}
-                                    opacity={0.7}
-                                    tileSize={256}
-                                />
-                            )}
-
-                            {/* 일반 선택 마커 */}
-                            {selectedMarker && (
-                                <Marker
-                                    coordinate={{ latitude: selectedMarker.latitude, longitude: selectedMarker.longitude }}
-                                />
-                            )}
-
-                            {/* Supabase/더미 매물 마커 */}
-                            {propertyMarkers.map((prop) => {
-                                const color = SALES_STATUS_COLORS[prop.sales_status] || '#9E9E9E';
-                                return (
-                                    <Marker
-                                        key={prop.property_id}
-                                        coordinate={{ latitude: prop.lat, longitude: prop.lng }}
-                                        pinColor={color}
-                                        title={prop.building_name || prop.road_address || '매물'}
-                                        description={`${prop.sales_status} | ${prop.purpose || ''}`}
-                                        onPress={() => handlePropertyMarkerPress(prop)}
-                                    />
-                                );
-                            })}
-                        </MapView>
+                            onMarkerPress={handleMarkerPress}
+                            mapType={mapType}
+                            selectedMarker={selectedMarker}
+                            markers={allMarkersForMap}
+                            userLocation={userLocation}
+                            onLoadProgress={handleMapLoadProgress}
+                        />
 
                         {/* 지도 타입 탭 */}
                         <View style={styles.mapTypeContainer}>
@@ -2366,6 +3801,17 @@ function AppContent() {
 
                         <LoadingOverlay visible={isMapLoading} message={loadingMessage} />
 
+                        {/* 카카오 로드뷰 모달 */}
+                        {selectedMarker && (
+                            <StreetViewModal
+                                visible={streetViewVisible}
+                                onClose={() => setStreetViewVisible(false)}
+                                latitude={selectedMarker.latitude}
+                                longitude={selectedMarker.longitude}
+                                title={selectedMarker.address}
+                            />
+                        )}
+
                         {/* 선택된 일반 마커 하단 패널 */}
                         {selectedMarker && !propertyModalVisible && (
                             <View style={styles.bottomPanel}>
@@ -2387,6 +3833,14 @@ function AppContent() {
                                     </View>
                                 </View>
                                 <View style={styles.bottomPanelButtons}>
+                                    {/* 로드뷰 버튼 */}
+                                    <TouchableOpacity
+                                        style={styles.bottomPanelButtonRoadview}
+                                        onPress={() => setStreetViewVisible(true)}
+                                    >
+                                        <Text style={styles.bottomPanelButtonText}>🗺️ 로드뷰</Text>
+                                    </TouchableOpacity>
+
                                     <TouchableOpacity
                                         style={[styles.bottomPanelButtonRegistry, registryRecord ? { backgroundColor: '#1565C0' } : null]}
                                         onPress={() => {
@@ -2416,8 +3870,15 @@ function AppContent() {
     };
 
     return (
+    <>
         <SafeAreaView style={styles.container}>
+            {/* 네트워크 상태 말풍선 (모든 탭에서 표시) */}
+            <NetworkBubble isOnline={isOnline} />
+
             <View style={styles.header}>
+                <View style={styles.headerIconWrap}>
+                    <Text style={styles.headerIcon}>☀️</Text>
+                </View>
                 <Text style={styles.title}>태양광 영업지원 지도</Text>
             </View>
 
@@ -2450,8 +3911,163 @@ function AppContent() {
             />
 
         </SafeAreaView>
+
+        {/* 대문(스플래시) 화면 - SafeAreaView 위에 오버레이 */}
+        {splashRendered && (
+            <SplashScreen
+                visible={splashVisible}
+                progress={splashProgress}
+                stage={splashStage}
+                onHidden={() => setSplashRendered(false)}
+            />
+        )}
+    </>
     );
 }
+
+// ===== 대문(스플래시) 화면 =====
+
+interface SplashProps {
+    progress: number;       // 0~100
+    stage: string;          // 단계 메시지
+    visible: boolean;
+    onHidden: () => void;
+}
+
+const SplashScreen = ({ progress, stage, visible, onHidden }: SplashProps) => {
+    const fadeAnim = useRef(new Animated.Value(1)).current;
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const hidden = useRef(false);
+
+    useEffect(() => {
+        if (!visible && !hidden.current) {
+            hidden.current = true;
+            Animated.parallel([
+                Animated.timing(fadeAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+                Animated.timing(scaleAnim, { toValue: 1.05, duration: 600, useNativeDriver: true }),
+            ]).start(() => onHidden());
+        }
+    }, [visible]);
+
+    const clampedProgress = Math.min(Math.max(progress, 0), 100);
+
+    return (
+        <Animated.View style={[splashStyles.container, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+            <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+            {/* 배경 그라디언트 효과 */}
+            <View style={splashStyles.bgTop} />
+            <View style={splashStyles.bgBottom} />
+
+            {/* 로고 영역 */}
+            <View style={splashStyles.logoArea}>
+                <View style={splashStyles.sunIcon}>
+                    <Text style={splashStyles.sunEmoji}>☀️</Text>
+                </View>
+                <Text style={splashStyles.appTitle}>태양광 영업지원</Text>
+                <Text style={splashStyles.appSubtitle}>지도 서비스</Text>
+            </View>
+
+            {/* 로딩 영역 */}
+            <View style={splashStyles.loadingArea}>
+                <Text style={splashStyles.stageText}>{stage}</Text>
+
+                {/* 퍼센테이지 */}
+                <Text style={splashStyles.percentText}>{Math.round(clampedProgress)}%</Text>
+
+                {/* 프로그래스 바 */}
+                <View style={splashStyles.progressTrack}>
+                    <Animated.View style={[splashStyles.progressFill, { width: `${clampedProgress}%` }]} />
+                </View>
+            </View>
+
+            {/* 하단 */}
+            <Text style={splashStyles.versionText}>v1.0</Text>
+        </Animated.View>
+    );
+};
+
+const splashStyles = StyleSheet.create({
+    container: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 9999,
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 80,
+    },
+    bgTop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: '#0D2B4E',
+        bottom: '50%',
+    },
+    bgBottom: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: '#1A4A7A',
+        top: '50%',
+    },
+    logoArea: {
+        alignItems: 'center',
+        marginTop: 40,
+    },
+    sunIcon: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        backgroundColor: 'rgba(255,200,0,0.15)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+        borderWidth: 2,
+        borderColor: 'rgba(255,200,0,0.4)',
+    },
+    sunEmoji: {
+        fontSize: 52,
+    },
+    appTitle: {
+        fontSize: 28,
+        fontWeight: '700',
+        color: '#FFFFFF',
+        letterSpacing: 1,
+        marginBottom: 8,
+    },
+    appSubtitle: {
+        fontSize: 15,
+        color: 'rgba(255,255,255,0.65)',
+        letterSpacing: 2,
+    },
+    loadingArea: {
+        width: '75%',
+        alignItems: 'center',
+    },
+    stageText: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.7)',
+        marginBottom: 10,
+        letterSpacing: 0.5,
+    },
+    percentText: {
+        fontSize: 36,
+        fontWeight: '700',
+        color: '#FFD700',
+        marginBottom: 14,
+    },
+    progressTrack: {
+        width: '100%',
+        height: 6,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: 3,
+        overflow: 'hidden',
+    },
+    progressFill: {
+        height: '100%',
+        backgroundColor: '#FFD700',
+        borderRadius: 3,
+    },
+    versionText: {
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.35)',
+    },
+});
 
 export default function App() {
     return (
@@ -2471,11 +4087,19 @@ const styles = StyleSheet.create({
     },
     header: {
         height: 60,
-        backgroundColor: '#4A90E2',
+        backgroundColor: '#000',
+        flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
     },
+    headerIconWrap: {
+        position: 'absolute',
+        left: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerIcon: { fontSize: 22 },
     title: {
         color: '#fff',
         fontSize: 18,
@@ -2486,24 +4110,25 @@ const styles = StyleSheet.create({
     floatingMenu: {
         position: 'absolute',
         bottom: 50,
-        left: 30,
-        right: 30,
+        left: 20,
+        right: 20,
         backgroundColor: '#fff',
         borderRadius: 30,
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',
-        height: 60,
+        height: 62,
+        paddingHorizontal: 8,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 10,
         zIndex: 10,
     },
     menuItem: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%' },
-    menuText: { fontSize: 16, color: '#888', fontWeight: '600' },
-    activeMenuText: { color: '#4A90E2', fontWeight: 'bold' },
+    menuText: { fontSize: 14, color: '#888', fontWeight: '600' },
+    activeMenuText: { color: '#000', fontWeight: 'bold' },
     gpsButton: {
         position: 'absolute',
         bottom: 130,
@@ -2541,7 +4166,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         backgroundColor: '#fff',
     },
-    activeTabButton: { backgroundColor: '#4A90E2' },
+    activeTabButton: { backgroundColor: '#000' },
     tabButtonText: { fontSize: 13, color: '#555', fontWeight: '600' },
     activeTabButtonText: { color: '#fff' },
 
@@ -2600,6 +4225,13 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 10,
         backgroundColor: '#4A90E2',
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    bottomPanelButtonRoadview: {
+        paddingVertical: 10,
+        paddingHorizontal: 14,
+        backgroundColor: '#2C3E50',
         borderRadius: 8,
         alignItems: 'center',
     },
@@ -2738,6 +4370,27 @@ const styles = StyleSheet.create({
         borderTopColor: '#eee',
         marginTop: 4,
     },
+    // 등기 이력 툴바 (건수 + CSV 버튼)
+    historyToolbar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        backgroundColor: '#F5F5F5',
+    },
+    exportButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        backgroundColor: '#4A90E2',
+        borderRadius: 8,
+    },
+    exportButtonText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+
     propCancelButton: {
         flex: 1,
         paddingVertical: 14,

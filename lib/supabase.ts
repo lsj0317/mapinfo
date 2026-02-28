@@ -39,6 +39,9 @@ export interface Property {
   registration_date: string | null; // 등기일자
   sales_status: SalesStatus;        // 영업상태
   sales_memo: string | null;        // 영업메모
+  photo_urls: string[] | null;      // 현장 사진 URL 목록 (Supabase Storage)
+  next_contact_date: string | null; // 다음 연락 예정일 (Push 알림용)
+  notification_id: string | null;   // 스케줄된 알림 ID
   created_at?: string;
   updated_at?: string;
 }

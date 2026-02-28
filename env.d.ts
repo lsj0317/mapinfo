@@ -8,4 +8,5 @@ declare module '@env' {
   export const EMONEY_PWD: string;
   export const SUPABASE_URL: string;
   export const SUPABASE_ANON_KEY: string;
+  export const KAKAO_API_KEY: string; // 카카오 로드뷰 (https://developers.kakao.com)
 }

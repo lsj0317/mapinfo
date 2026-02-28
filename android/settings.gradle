@@ -1,6 +1,26 @@
-pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
-plugins { id("com.facebook.react.settings") }
+pluginManagement {
+    includeBuild("../node_modules/@react-native/gradle-plugin")
+    includeBuild("../node_modules/expo-modules-core/expo-module-gradle-plugin")
+    includeBuild("../node_modules/expo-modules-autolinking/android/expo-gradle-plugin")
+}
+
+plugins {
+    id("com.facebook.react.settings")
+    id("expo-autolinking-settings")
+}
+
 extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
+expoAutolinking.useExpoModules()
+
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://maven.expo.dev/expo/maven' }
+        maven { url 'https://www.jitpack.io' }
+    }
+}
+
 rootProject.name = 'mapinfo'
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
