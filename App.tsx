@@ -582,6 +582,30 @@ const useMapStore = create<MapStore>((set, get) => ({
 
 // ===== Tilko API 함수 =====
 
+/**
+ * Tilko/IROS API 응답에서 잔액 부족 여부를 감지한다.
+ * 잔액 부족이면 "[잔액부족]" 접두사가 붙은 메시지를 반환, 아니면 null.
+ */
+function detectBalanceError(json: Record<string, unknown>): string | null {
+    const msg = String(json.Message ?? json.message ?? '');
+    const errLog = String(json.ErrorLog ?? json.TargetMessage ?? json.errorLog ?? '');
+    const combined = (msg + ' ' + errLog).toLowerCase();
+
+    const isInsufficient = combined.includes('부족') || combined.includes('잔액')
+        || combined.includes('insufficient') || combined.includes('balance')
+        || combined.includes('credit') || combined.includes('크레딧');
+
+    if (!isInsufficient) return null;
+
+    const isElectronic = combined.includes('전자화폐') || combined.includes('emoney')
+        || combined.includes('이머니') || combined.includes('전자민원');
+
+    if (isElectronic) {
+        return '[잔액부족] 전자민원 캐시(전자화폐) 잔액이 부족합니다.\n전자민원 포털에서 충전 후 다시 시도해주세요.';
+    }
+    return '[잔액부족] 틸코 API 토큰 잔액이 부족합니다.\n틸코 API 포털(api.tilko.net)에서 충전 후 다시 시도해주세요.';
+}
+
 async function createTilkoEncryption() {
     const pubKeyRes = await fetch(`https://api.tilko.net/api/Auth/GetPublicKey?APIkey=${TILKO_API_KEY}`);
     const pubKeyJson = await pubKeyRes.json();
@@ -639,6 +663,8 @@ async function fetchRegistryInfo(pin: string): Promise<{ owner: string; address:
     const registryJson = await registryRes.json();
     const regOk = registryJson.Message === 'OK' || registryJson.Message === '성공' || registryJson.Status === 'Success';
     if (!regOk) {
+        const balanceMsg = detectBalanceError(registryJson as Record<string, unknown>);
+        if (balanceMsg) throw new Error(balanceMsg);
         const errorDetail = registryJson.ErrorLog || registryJson.TargetMessage || '';
         throw new Error(registryJson.Message + (errorDetail ? ` (${errorDetail})` : '') || '등기정보 조회 실패');
     }
@@ -952,6 +978,8 @@ async function fetchUniqueNoByAddress(addr: string): Promise<{ uniqueNo: string;
     const searchJson = await searchRes.json();
     const searchOk = searchJson.Message === 'OK' || searchJson.Message === '성공' || searchJson.Status === 'Success';
     if (!searchOk) {
+        const balanceMsg = detectBalanceError(searchJson as Record<string, unknown>);
+        if (balanceMsg) throw new Error(balanceMsg);
         throw new Error(searchJson.ErrorLog || searchJson.Message || '고유번호 검색 실패');
     }
     const dataList = (searchJson.Result && searchJson.Result.DataList) || searchJson.DataList || [];
@@ -2351,7 +2379,12 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                 loadLandUseInfoForMarker(marker.latitude, marker.longitude);
             }
         } catch (e: any) {
-            setError(e.message || '등기정보 조회 중 오류가 발생했습니다.');
+            const msg: string = e.message || '등기정보 조회 중 오류가 발생했습니다.';
+            if (msg.startsWith('[잔액부족]')) {
+                Alert.alert('💳 잔액 부족', msg.replace('[잔액부족] ', ''));
+            } else {
+                setError(msg);
+            }
             setStatus('');
         } finally {
             setIsLoading(false);
@@ -2415,7 +2448,12 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
             // 토지이용계획 조회 (병렬)
             loadLandUseInfoForMarker(marker.latitude, marker.longitude);
         } catch (e: any) {
-            setError(e.message || '등기정보 조회 중 오류가 발생했습니다.');
+            const msg: string = e.message || '등기정보 조회 중 오류가 발생했습니다.';
+            if (msg.startsWith('[잔액부족]')) {
+                Alert.alert('💳 잔액 부족', msg.replace('[잔액부족] ', ''));
+            } else {
+                setError(msg);
+            }
             setStatus('');
         } finally {
             setIsLoading(false);
@@ -3953,7 +3991,11 @@ function AppContent() {
                             await checkAndSetRegistryRecord(selectedMarker.latitude, selectedMarker.longitude);
                             Alert.alert("완료", "등기부등본 정보가 갱신되었습니다.");
                         } catch (e: any) {
-                            Alert.alert("오류", e.message || "갱신 중 오류가 발생했습니다.");
+                            const msg: string = e.message || '갱신 중 오류가 발생했습니다.';
+                            Alert.alert(
+                                msg.startsWith('[잔액부족]') ? '💳 잔액 부족' : '오류',
+                                msg.replace('[잔액부족] ', ''),
+                            );
                         } finally {
                             setIsMapLoading(false);
                             setLoadingMessage('');
@@ -4219,6 +4261,7 @@ function AppContent() {
 
     return (
     <>
+        <StatusBar barStyle="light-content" backgroundColor="#000" translucent={false} />
         <SafeAreaView style={styles.container}>
             {/* 네트워크 상태 말풍선 (모든 탭에서 표시) */}
             <NetworkBubble isOnline={isOnline} />
@@ -4468,7 +4511,7 @@ export default function App() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: '#000',
         paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     },
     header: {
