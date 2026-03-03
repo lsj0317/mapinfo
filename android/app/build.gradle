@@ -1,4 +1,15 @@
 apply plugin: "com.android.application"
+
+// 프로젝트 루트의 .env 파일에서 GOOGLE_MAPS_API_KEY 읽기
+def googleMapsApiKey = ""
+def envFile = rootProject.file("../.env")
+if (envFile.exists()) {
+    envFile.eachLine { line ->
+        if (line.startsWith("GOOGLE_MAPS_API_KEY=")) {
+            googleMapsApiKey = line.split("=", 2)[1].trim()
+        }
+    }
+}
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
@@ -84,6 +95,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        manifestPlaceholders = [GOOGLE_MAPS_API_KEY: googleMapsApiKey]
     }
     signingConfigs {
         debug {

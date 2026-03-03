@@ -46,6 +46,22 @@ export interface Property {
   updated_at?: string;
 }
 
+// 장소 영업 상태
+export type PlaceStatus = '미접촉' | '접촉' | '미팅예정' | '성사' | '거절';
+
+export interface PlaceRecord {
+    id: string;
+    lat: number;
+    lng: number;
+    road_address: string | null;
+    jibun_address: string | null;
+    status: PlaceStatus;
+    status_date: string | null;
+    memo: string | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
 // 더미 데이터 (Supabase 미설정 시 또는 테스트용)
 // 주소: 경기도 오산시 가수동 55-5 (가수행복로 일대)
 export const DUMMY_PROPERTIES: Property[] = [
@@ -64,6 +80,9 @@ export const DUMMY_PROPERTIES: Property[] = [
     registration_date: '2020-03-15',
     sales_status: '미접촉',
     sales_memo: null,
+    photo_urls: null,
+    next_contact_date: null,
+    notification_id: null,
   },
   {
     property_id: '1348-2024-999002',
@@ -80,6 +99,9 @@ export const DUMMY_PROPERTIES: Property[] = [
     registration_date: '2015-07-22',
     sales_status: '미접촉',
     sales_memo: null,
+    photo_urls: null,
+    next_contact_date: null,
+    notification_id: null,
   },
   {
     property_id: '1348-2024-999003',
@@ -96,5 +118,8 @@ export const DUMMY_PROPERTIES: Property[] = [
     registration_date: '2018-11-30',
     sales_status: '접촉',
     sales_memo: '2024-01 방문 완료, 관심 있음. 재방문 예정.',
+    photo_urls: null,
+    next_contact_date: null,
+    notification_id: null,
   },
 ];

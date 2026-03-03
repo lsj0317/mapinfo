@@ -7,15 +7,15 @@ import {
     ActivityIndicator, Dimensions, TextInput, Modal, ScrollView,
     Share, Image, Linking, AppState, AppStateStatus,
 } from 'react-native';
-import KakaoMapView, { KakaoMapHandle, type MapRegion as Region } from './KakaoMapView';
+import GoogleMapView, { GoogleMapHandle, type MapRegion as Region } from './GoogleMapView';
 import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
-import { VWORLD_API_KEY, TILKO_API_KEY, IROS_USER_ID, IROS_USER_PASSWORD, EMONEY_NO1, EMONEY_NO2, EMONEY_PWD, KAKAO_API_KEY } from '@env';
+import { VWORLD_API_KEY, TILKO_API_KEY, IROS_USER_ID, IROS_USER_PASSWORD, EMONEY_NO1, EMONEY_NO2, EMONEY_PWD, KAKAO_API_KEY, GOOGLE_MAPS_API_KEY } from '@env';
 import forge from 'node-forge';
-import { supabase, type Property, type SalesStatus } from './lib/supabase';
+import { supabase, type Property, type SalesStatus, type PlaceRecord, type PlaceStatus } from './lib/supabase';
 
 // 선택적 패키지 (설치 필요: npx expo install expo-image-picker expo-notifications)
 let ImagePicker: typeof import('expo-image-picker') | null = null;
@@ -242,7 +242,9 @@ interface Building {
     propertyId?: string; // Supabase property_id 연결용
 }
 
-type MapType = 'standard' | 'cadastral';
+type MapType = 'standard' | 'cadastral' | 'satellite';
+
+const APP_VERSION = '1.0.0';
 
 // 영업상태 목록
 const SALES_STATUSES: SalesStatus[] = ['미접촉', '접촉', '영업성공', '영업실패', '대기중', '보류'];
@@ -1140,9 +1142,9 @@ const offlineStyles = StyleSheet.create({
     bannerText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });
 
-// ===== 카카오 로드뷰 모달 =====
+// ===== Google Street View 모달 =====
 
-function buildStreetViewHTML(lat: number, lng: number, kakaoKey: string): string {
+function buildStreetViewHTML(lat: number, lng: number, googleKey: string): string {
     return `<!DOCTYPE html>
 <html>
 <head>
@@ -1151,37 +1153,44 @@ function buildStreetViewHTML(lat: number, lng: number, kakaoKey: string): string
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
     html,body{width:100%;height:100%;background:#000;}
-    #roadview{width:100%;height:100%;}
+    #pano{width:100%;height:100%;}
     #fallback{display:none;padding:40px 20px;color:#fff;text-align:center;font-size:15px;background:#222;height:100%;justify-content:center;align-items:center;flex-direction:column;}
     #fallback-icon{font-size:48px;margin-bottom:16px;}
   </style>
 </head>
 <body>
-  <div id="roadview"></div>
+  <div id="pano"></div>
   <div id="fallback">
-    <div id="fallback-icon">🗺️</div>
-    <p>이 위치에서는 로드뷰를 제공하지 않습니다.<br><small style="color:#aaa;margin-top:8px;display:block;">건물 외부 또는 주요 도로 주변으로 이동해 다시 시도하세요.</small></p>
+    <div id="fallback-icon">📷</div>
+    <p>이 위치에서는 실제이미지를 제공하지 않습니다.<br><small style="color:#aaa;margin-top:8px;display:block;">건물 외부 또는 주요 도로 주변으로 이동해 다시 시도하세요.</small></p>
   </div>
-  <script src="//dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoKey}&libraries=services"></script>
   <script>
-    try {
-      var rv = new kakao.maps.Roadview(document.getElementById('roadview'));
-      var rvc = new kakao.maps.RoadviewClient();
-      rvc.getNearestPanoId(new kakao.maps.LatLng(${lat},${lng}), 50, function(panoId) {
-        if (panoId === null) {
-          document.getElementById('roadview').style.display='none';
-          document.getElementById('fallback').style.display='flex';
-        } else {
-          rv.setPanoId(panoId, new kakao.maps.LatLng(${lat},${lng}));
-        }
-      });
-    } catch(e) {
-      document.getElementById('roadview').style.display='none';
-      document.getElementById('fallback').style.display='flex';
-      document.getElementById('fallback-icon').innerText='⚠️';
-      document.querySelector('#fallback p').innerText='로드뷰 로드 오류: '+e.message;
+    function initMap() {
+      try {
+        var sv = new google.maps.StreetViewService();
+        sv.getPanorama({ location: { lat: ${lat}, lng: ${lng} }, radius: 50 }, function(data, status) {
+          if (status === 'OK') {
+            new google.maps.StreetViewPanorama(document.getElementById('pano'), {
+              position: { lat: ${lat}, lng: ${lng} },
+              pov: { heading: 34, pitch: 10 },
+              zoom: 1,
+              addressControl: false,
+              enableCloseButton: false,
+            });
+          } else {
+            document.getElementById('pano').style.display='none';
+            document.getElementById('fallback').style.display='flex';
+          }
+        });
+      } catch(e) {
+        document.getElementById('pano').style.display='none';
+        document.getElementById('fallback').style.display='flex';
+        document.getElementById('fallback-icon').innerText='⚠️';
+        document.querySelector('#fallback p').innerText='로드 오류: '+e.message;
+      }
     }
   </script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=${googleKey}&callback=initMap" async defer></script>
 </body>
 </html>`;
 }
@@ -1199,10 +1208,10 @@ const StreetViewModal = ({
     longitude: number;
     title?: string;
 }) => {
-    const kakaoKey = KAKAO_API_KEY || '';
+    const googleKey = GOOGLE_MAPS_API_KEY || '';
     const html = useMemo(
-        () => buildStreetViewHTML(latitude, longitude, kakaoKey),
-        [latitude, longitude, kakaoKey],
+        () => buildStreetViewHTML(latitude, longitude, googleKey),
+        [latitude, longitude, googleKey],
     );
 
     return (
@@ -1210,22 +1219,22 @@ const StreetViewModal = ({
             <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
                 <View style={svStyles.header}>
                     <Text style={svStyles.title} numberOfLines={1}>
-                        🗺️ {title || '로드뷰'}
+                        📷 {title || '실제이미지'}
                     </Text>
                     <TouchableOpacity onPress={onClose} style={svStyles.closeBtn}>
                         <Text style={svStyles.closeTxt}>닫기</Text>
                     </TouchableOpacity>
                 </View>
-                {!kakaoKey ? (
+                {!googleKey ? (
                     <View style={svStyles.noKey}>
                         <Text style={svStyles.noKeyText}>
-                            .env에 KAKAO_API_KEY를 설정해 주세요.{'\n'}
-                            (kakao developers → 내 애플리케이션 → JavaScript 키)
+                            .env에 GOOGLE_MAPS_API_KEY를 설정해 주세요.{'\n'}
+                            (Google Cloud Console → Maps JavaScript API 키)
                         </Text>
                     </View>
                 ) : (
                     <WebView
-                        source={{ html, baseUrl: 'https://dapi.kakao.com' }}
+                        source={{ html, baseUrl: 'https://maps.googleapis.com' }}
                         style={{ flex: 1 }}
                         javaScriptEnabled
                         domStorageEnabled
@@ -1235,7 +1244,7 @@ const StreetViewModal = ({
                         renderLoading={() => (
                             <View style={svStyles.loading}>
                                 <ActivityIndicator color="#fff" size="large" />
-                                <Text style={{ color: '#fff', marginTop: 12 }}>로드뷰 불러오는 중...</Text>
+                                <Text style={{ color: '#fff', marginTop: 12 }}>실제이미지 불러오는 중...</Text>
                             </View>
                         )}
                     />
@@ -3476,18 +3485,424 @@ const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
     );
 };
 
+// ===== PlaceManagementModal =====
+
+const PLACE_STATUSES: PlaceStatus[] = ['미접촉', '접촉', '미팅예정', '성사', '거절'];
+const PLACE_STATUS_COLORS: Record<PlaceStatus, string> = {
+    '미접촉': '#9E9E9E',
+    '접촉':   '#2196F3',
+    '미팅예정': '#FF9800',
+    '성사':   '#4CAF50',
+    '거절':   '#F44336',
+};
+
+interface PlaceManagementModalProps {
+    visible: boolean;
+    onClose: () => void;
+    latitude: number;
+    longitude: number;
+    address: string;
+}
+
+const PlaceManagementModal = ({ visible, onClose, latitude, longitude, address }: PlaceManagementModalProps) => {
+    const { elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const [record, setRecord] = useState<PlaceRecord | null>(null);
+    const [status, setStatus] = useState<PlaceStatus>('미접촉');
+    const [memo, setMemo] = useState('');
+    const [statusDate, setStatusDate] = useState('');
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (!visible) return;
+        (async () => {
+            const delta = 0.001;
+            const { data } = await supabase
+                .from('places')
+                .select('*')
+                .gte('lat', latitude - delta)
+                .lte('lat', latitude + delta)
+                .gte('lng', longitude - delta)
+                .lte('lng', longitude + delta)
+                .limit(1)
+                .maybeSingle();
+            if (data) {
+                const r = data as PlaceRecord;
+                setRecord(r);
+                setStatus(r.status);
+                setMemo(r.memo || '');
+                setStatusDate(r.status_date || '');
+            } else {
+                setRecord(null);
+                setStatus('미접촉');
+                setMemo('');
+                setStatusDate('');
+            }
+        })();
+    }, [visible, latitude, longitude]);
+
+    const showDateForStatus = ['미팅예정', '성사', '거절'].includes(status);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const payload = {
+                lat: latitude,
+                lng: longitude,
+                road_address: address,
+                jibun_address: null,
+                status,
+                status_date: showDateForStatus ? (statusDate || today) : null,
+                memo: memo || null,
+                updated_at: new Date().toISOString(),
+            };
+            if (record) {
+                await supabase.from('places').update(payload).eq('id', record.id);
+            } else {
+                await supabase.from('places').insert([{ ...payload, created_at: new Date().toISOString() }]);
+            }
+            Alert.alert('저장 완료', '장소 관리 정보가 저장되었습니다.');
+            onClose();
+        } catch (e) {
+            Alert.alert('저장 실패', '저장 중 오류가 발생했습니다.');
+        }
+        setIsSaving(false);
+    };
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
+                        <Text style={{ flex: 1, fontSize: fs.lg, fontWeight: '700', color: '#222' }}>📍 장소관리</Text>
+                        <TouchableOpacity onPress={onClose}>
+                            <Text style={{ fontSize: 20, color: '#999' }}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: fs.sm, color: '#666', marginBottom: 14 }} numberOfLines={2}>{address}</Text>
+
+                    {/* 상태 선택 */}
+                    <Text style={{ fontSize: fs.sm, fontWeight: '600', color: '#444', marginBottom: 8 }}>영업 상태</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                        {PLACE_STATUSES.map(s => (
+                            <TouchableOpacity
+                                key={s}
+                                onPress={() => setStatus(s)}
+                                style={{
+                                    paddingHorizontal: 14,
+                                    paddingVertical: 8,
+                                    borderRadius: 20,
+                                    backgroundColor: status === s ? PLACE_STATUS_COLORS[s] : '#eee',
+                                }}
+                            >
+                                <Text style={{ fontSize: fs.sm, color: status === s ? '#fff' : '#555', fontWeight: status === s ? '700' : '400' }}>{s}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+
+                    {/* 날짜 입력 (조건부) */}
+                    {showDateForStatus && (
+                        <View style={{ marginBottom: 14 }}>
+                            <Text style={{ fontSize: fs.sm, fontWeight: '600', color: '#444', marginBottom: 8 }}>날짜</Text>
+                            <TouchableOpacity
+                                style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12 }}
+                                onPress={() => setShowDatePicker(true)}
+                            >
+                                <Text style={{ fontSize: fs.base, color: statusDate ? '#222' : '#aaa' }}>
+                                    {statusDate || '날짜 선택 (오늘: ' + new Date().toISOString().split('T')[0] + ')'}
+                                </Text>
+                            </TouchableOpacity>
+                            {showDatePicker && (
+                                <View style={{ marginTop: 8 }}>
+                                    <TextInput
+                                        style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: fs.base }}
+                                        value={statusDate}
+                                        onChangeText={setStatusDate}
+                                        placeholder="YYYY-MM-DD"
+                                        keyboardType="numeric"
+                                        maxLength={10}
+                                        onBlur={() => setShowDatePicker(false)}
+                                        autoFocus
+                                    />
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+                    {/* 메모 */}
+                    <Text style={{ fontSize: fs.sm, fontWeight: '600', color: '#444', marginBottom: 8 }}>메모</Text>
+                    <TextInput
+                        style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 12, fontSize: fs.base, minHeight: 80, textAlignVertical: 'top', marginBottom: 16 }}
+                        value={memo}
+                        onChangeText={setMemo}
+                        placeholder="영업 메모를 입력하세요..."
+                        multiline
+                        numberOfLines={3}
+                    />
+
+                    <TouchableOpacity
+                        style={{ backgroundColor: '#2C3E50', borderRadius: 10, paddingVertical: 14, alignItems: 'center' }}
+                        onPress={handleSave}
+                        disabled={isSaving}
+                    >
+                        {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontSize: fs.base, fontWeight: '700' }}>저장</Text>}
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
+// ===== HomeScreen (대시보드) =====
+
+interface HomeScreenProps {
+    onMoveToMap: () => void;
+    onShowRegistry: () => void;
+    onShowFavorites: () => void;
+}
+
+const HomeScreen = ({ onMoveToMap, onShowRegistry, onShowFavorites }: HomeScreenProps) => {
+    const { elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const [registryCount, setRegistryCount] = useState<number | null>(null);
+    const [favoritesCount, setFavoritesCount] = useState<number | null>(null);
+    const [placeCounts, setPlaceCounts] = useState<Record<PlaceStatus, number>>({
+        '미접촉': 0, '접촉': 0, '미팅예정': 0, '성사': 0, '거절': 0,
+    });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const [regRes, favJson, placesRes] = await Promise.all([
+                    supabase.from('registry_views').select('id', { count: 'exact', head: true }),
+                    AsyncStorage.getItem(FAVORITE_PLACES_KEY),
+                    supabase.from('places').select('status'),
+                ]);
+                setRegistryCount(regRes.count ?? 0);
+                const favs: unknown[] = favJson ? JSON.parse(favJson) : [];
+                setFavoritesCount(favs.length);
+                const counts: Record<PlaceStatus, number> = { '미접촉': 0, '접촉': 0, '미팅예정': 0, '성사': 0, '거절': 0 };
+                (placesRes.data || []).forEach((row: { status: string }) => {
+                    const s = row.status as PlaceStatus;
+                    if (s in counts) counts[s]++;
+                });
+                setPlaceCounts(counts);
+            } catch (_) {}
+            setIsLoading(false);
+        })();
+    }, []);
+
+    const totalPlaces = Object.values(placeCounts).reduce((a, b) => a + b, 0);
+
+    return (
+        <ScrollView style={{ flex: 1, backgroundColor: '#f5f5f5' }} contentContainerStyle={{ padding: 16 }}>
+            {/* 앱 타이틀 */}
+            <View style={{ marginBottom: 20, marginTop: 8 }}>
+                <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#111' }}>태양광 영업지원 지도</Text>
+                <Text style={{ fontSize: fs.sm, color: '#888', marginTop: 4 }}>오늘도 좋은 영업 하세요!</Text>
+            </View>
+
+            {isLoading ? (
+                <ActivityIndicator style={{ marginTop: 40 }} />
+            ) : (
+                <>
+                    {/* 등기부등본 발급 내역 */}
+                    <TouchableOpacity
+                        style={{ backgroundColor: '#fff', borderRadius: 14, padding: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 }}
+                        onPress={onShowRegistry}
+                    >
+                        <Text style={{ fontSize: 28, marginRight: 14 }}>📋</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: fs.base, fontWeight: '600', color: '#333' }}>등기부등본 발급 내역</Text>
+                            <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#1976D2', marginTop: 4 }}>
+                                {registryCount ?? '-'}건
+                            </Text>
+                        </View>
+                        <Text style={{ fontSize: 18, color: '#ccc' }}>›</Text>
+                    </TouchableOpacity>
+
+                    {/* 즐겨찾는 장소 */}
+                    <TouchableOpacity
+                        style={{ backgroundColor: '#fff', borderRadius: 14, padding: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 }}
+                        onPress={onShowFavorites}
+                    >
+                        <Text style={{ fontSize: 28, marginRight: 14 }}>⭐</Text>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: fs.base, fontWeight: '600', color: '#333' }}>즐겨찾는 장소</Text>
+                            <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#F57C00', marginTop: 4 }}>
+                                {favoritesCount ?? '-'}건
+                            </Text>
+                        </View>
+                        <Text style={{ fontSize: 18, color: '#ccc' }}>›</Text>
+                    </TouchableOpacity>
+
+                    {/* 장소관리 현황 */}
+                    <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 18, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                            <Text style={{ fontSize: 24, marginRight: 10 }}>📍</Text>
+                            <Text style={{ fontSize: fs.base, fontWeight: '600', color: '#333', flex: 1 }}>장소관리 현황</Text>
+                            <Text style={{ fontSize: fs.lg, fontWeight: '800', color: '#2E7D32' }}>{totalPlaces}건</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                            {PLACE_STATUSES.filter(s => s !== '미접촉').map(s => (
+                                <View key={s} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
+                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: PLACE_STATUS_COLORS[s], marginRight: 6 }} />
+                                    <Text style={{ fontSize: fs.sm, color: '#555' }}>{s} {placeCounts[s]}건</Text>
+                                </View>
+                            ))}
+                        </View>
+                        <TouchableOpacity
+                            style={{ marginTop: 14, backgroundColor: '#2C3E50', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                            onPress={onMoveToMap}
+                        >
+                            <Text style={{ color: '#fff', fontSize: fs.sm, fontWeight: '600' }}>지도에서 장소관리 →</Text>
+                        </TouchableOpacity>
+                    </View>
+                </>
+            )}
+        </ScrollView>
+    );
+};
+
+// ===== ImprovementsScreen =====
+
+interface ImprovementRecord {
+    id: string;
+    title: string;
+    content: string;
+    category: string;
+    version: string | null;
+    created_at: string;
+}
+
+const IMPROVEMENT_CATEGORY_COLORS: Record<string, string> = {
+    '버그수정': '#E53935',
+    '기능개선': '#1976D2',
+    '신규기능': '#2E7D32',
+    '공지':     '#F57C00',
+};
+
+const ImprovementsScreen = ({ onBack }: { onBack: () => void }) => {
+    const { elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const [items, setItems] = useState<ImprovementRecord[]>([]);
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<ImprovementRecord | null>(null);
+
+    const loadPage = async (p: number) => {
+        if (isLoading) return;
+        setIsLoading(true);
+        try {
+            const { data } = await supabase
+                .from('improvements')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .range(p * 5, p * 5 + 4);
+            const rows = (data || []) as ImprovementRecord[];
+            setItems(prev => p === 0 ? rows : [...prev, ...rows]);
+            setHasMore(rows.length === 5);
+        } catch (_) {}
+        setIsLoading(false);
+    };
+
+    useEffect(() => { loadPage(0); }, []);
+
+    const loadMore = () => {
+        if (!hasMore || isLoading) return;
+        const next = page + 1;
+        setPage(next);
+        loadPage(next);
+    };
+
+    if (selectedItem) {
+        return (
+            <View style={{ flex: 1, backgroundColor: '#fff' }}>
+                <View style={[styles.header, { backgroundColor: '#111' }]}>
+                    <TouchableOpacity style={styles.headerIconWrap} onPress={() => setSelectedItem(null)}>
+                        <Text style={{ color: '#fff', fontSize: 18 }}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.title, { fontSize: fs.lg }]} numberOfLines={1}>{selectedItem.title}</Text>
+                </View>
+                <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                        <View style={{ backgroundColor: IMPROVEMENT_CATEGORY_COLORS[selectedItem.category] || '#777', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3, marginRight: 8 }}>
+                            <Text style={{ color: '#fff', fontSize: fs.xs, fontWeight: '700' }}>{selectedItem.category}</Text>
+                        </View>
+                        {selectedItem.version && (
+                            <Text style={{ fontSize: fs.xs, color: '#888', marginRight: 8 }}>v{selectedItem.version}</Text>
+                        )}
+                        <Text style={{ fontSize: fs.xs, color: '#999' }}>
+                            {new Date(selectedItem.created_at).toLocaleDateString('ko-KR')}
+                        </Text>
+                    </View>
+                    <Text style={{ fontSize: fs.base, color: '#222', lineHeight: 24 }}>{selectedItem.content}</Text>
+                </ScrollView>
+            </View>
+        );
+    }
+
+    return (
+        <View style={{ flex: 1, backgroundColor: '#fff' }}>
+            <View style={[styles.header, { backgroundColor: '#111' }]}>
+                <TouchableOpacity style={styles.headerIconWrap} onPress={onBack}>
+                    <Text style={{ color: '#fff', fontSize: 18 }}>←</Text>
+                </TouchableOpacity>
+                <Text style={[styles.title, { fontSize: fs.lg }]}>개선사항 / 공지</Text>
+            </View>
+            <FlatList
+                data={items}
+                keyExtractor={item => item.id}
+                contentContainerStyle={{ padding: 12 }}
+                onEndReached={loadMore}
+                onEndReachedThreshold={0.3}
+                ListEmptyComponent={
+                    isLoading ? <ActivityIndicator style={{ marginTop: 40 }} /> :
+                    <Text style={{ textAlign: 'center', color: '#aaa', marginTop: 40, fontSize: fs.base }}>등록된 내용이 없습니다.</Text>
+                }
+                ListFooterComponent={isLoading && items.length > 0 ? <ActivityIndicator style={{ marginVertical: 12 }} /> : null}
+                renderItem={({ item }) => (
+                    <TouchableOpacity
+                        style={{ backgroundColor: '#f9f9f9', borderRadius: 10, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#eee' }}
+                        onPress={() => setSelectedItem(item)}
+                    >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                            <View style={{ backgroundColor: IMPROVEMENT_CATEGORY_COLORS[item.category] || '#777', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2, marginRight: 8 }}>
+                                <Text style={{ color: '#fff', fontSize: fs.xs, fontWeight: '700' }}>{item.category}</Text>
+                            </View>
+                            {item.version && (
+                                <Text style={{ fontSize: fs.xs, color: '#888', marginRight: 6 }}>v{item.version}</Text>
+                            )}
+                            <Text style={{ fontSize: fs.xs, color: '#bbb', marginLeft: 'auto' }}>
+                                {new Date(item.created_at).toLocaleDateString('ko-KR')}
+                            </Text>
+                        </View>
+                        <Text style={{ fontSize: fs.base, fontWeight: '600', color: '#222', marginBottom: 4 }}>{item.title}</Text>
+                        <Text style={{ fontSize: fs.sm, color: '#666' }} numberOfLines={1}>{item.content}</Text>
+                    </TouchableOpacity>
+                )}
+            />
+        </View>
+    );
+};
+
 // ===== MoreScreen =====
 
 const MoreScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
     const { elderlyMode } = useMapStore();
     const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
-    const [currentView, setCurrentView] = useState<'menu' | 'search' | 'recent' | 'favorites' | 'registry' | 'settings'>('menu');
+    const [currentView, setCurrentView] = useState<'menu' | 'search' | 'recent' | 'favorites' | 'registry' | 'settings' | 'improvements'>('menu');
     if (currentView === 'search') return <PlaceSearchScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'recent') return <RecentPlacesScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'favorites') return <FavoritePlacesScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'registry') return <RegistryHistoryScreen onBack={() => setCurrentView('menu')} />;
     if (currentView === 'settings') return <ElderlyModeScreen onBack={() => setCurrentView('menu')} />;
+    if (currentView === 'improvements') return <ImprovementsScreen onBack={() => setCurrentView('menu')} />;
     return (
         <View style={styles.menuContainer}>
             <TouchableOpacity
@@ -3515,40 +3930,29 @@ const MoreScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
                 <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>즐겨 찾는 장소</Text>
             </TouchableOpacity>
             <TouchableOpacity
-                style={[styles.menuButton, {
-                    backgroundColor: '#E3F2FD',
-                    borderLeftWidth: 4,
-                    borderLeftColor: '#1565C0',
-                    minHeight: ts.minHeight,
-                    padding: ts.padding,
-                }]}
+                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
                 onPress={() => setCurrentView('registry')}
                 accessibilityLabel="등기 열람 이력 화면으로 이동"
                 accessibilityRole="button"
             >
-                <Text style={[styles.menuButtonText, { color: '#1565C0', fontSize: fs.xl }]}>등기 열람 이력</Text>
-                <Text style={{ fontSize: fs.sm, color: '#1976D2', marginTop: 2 }}>소유자 실명 · 실거주지 확인 · CSV 내보내기</Text>
+                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>등기 열람 이력</Text>
             </TouchableOpacity>
             <TouchableOpacity
-                style={[styles.menuButton, {
-                    backgroundColor: elderlyMode ? '#FFF8E1' : '#F1F8E9',
-                    borderLeftWidth: 4,
-                    borderLeftColor: elderlyMode ? '#E65100' : '#4CAF50',
-                    minHeight: ts.minHeight,
-                    padding: ts.padding,
-                }]}
+                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
+                onPress={() => setCurrentView('improvements')}
+                accessibilityLabel="개선사항 및 공지 화면으로 이동"
+                accessibilityRole="button"
+            >
+                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>개선사항 / 공지</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
                 onPress={() => setCurrentView('settings')}
                 accessibilityLabel="화면 설정. 큰 글씨 모드를 켜거나 끌 수 있습니다"
                 accessibilityRole="button"
             >
-                <Text style={[styles.menuButtonText, {
-                    color: elderlyMode ? '#E65100' : '#2E7D32',
-                    fontSize: fs.xl,
-                }]}>
+                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>
                     화면 설정 {elderlyMode ? '(큰 글씨 켜짐)' : ''}
-                </Text>
-                <Text style={{ fontSize: fs.sm, color: elderlyMode ? '#BF360C' : '#558B2F', marginTop: 2 }}>
-                    글자 크기 · 버튼 크기 조정
                 </Text>
             </TouchableOpacity>
         </View>
@@ -3707,8 +4111,9 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
 // ===== 메인 앱 =====
 
 function AppContent() {
-    const [currentTab, setCurrentTab] = useState('home');
-    const mapRef = useRef<KakaoMapHandle>(null);
+    const [currentTab, setCurrentTab] = useState('map');
+    const [placeManagementVisible, setPlaceManagementVisible] = useState(false);
+    const mapRef = useRef<GoogleMapHandle>(null);
     const { region, setRegion, selectedMarker, setSelectedMarker, mapType, setMapType, propertyMarkers, setPropertyMarkers, saveRecentPlace, buildingFilter, clusteringEnabled, setClusteringEnabled, elderlyMode, setElderlyMode } = useMapStore();
     const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
@@ -3763,7 +4168,8 @@ function AppContent() {
     const [registryModalVisible, setRegistryModalVisible] = useState(false);
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
     const [propertyModalVisible, setPropertyModalVisible] = useState(false);
-    const [registryRecord, setRegistryRecord] = useState<{ id: string; jibun_address?: string; xml_data?: string } | null>(null);
+    const [registryRecord, setRegistryRecord] = useState<{ id: string; lat?: number; lng?: number; jibun_address?: string; xml_data?: string } | null>(null);
+    const [allRegistryViews, setAllRegistryViews] = useState<Array<{ id: string; lat?: number; lng?: number; jibun_address?: string; xml_data?: string }>>([]);
     const [isFavorite, setIsFavorite] = useState(false);
 
     // 로드뷰 상태
@@ -3787,6 +4193,23 @@ function AppContent() {
             if (json) setPendingQueueCount((JSON.parse(json) as OfflineQueueItem[]).length);
         });
     }, [isOnline]);
+
+    // registry_views 전체 캐시 로드 (앱 시작 시 1회)
+    const loadAllRegistryViews = useCallback(async () => {
+        try {
+            const { data } = await supabase
+                .from('registry_views')
+                .select('id, lat, lng, jibun_address, xml_data')
+                .order('viewed_at', { ascending: false });
+            setAllRegistryViews(data || []);
+        } catch {
+            // 로드 실패 시 빈 배열 유지
+        }
+    }, []);
+
+    useEffect(() => {
+        loadAllRegistryViews();
+    }, [loadAllRegistryViews]);
 
     // 클러스터링: 줌 레벨 임계치
     useEffect(() => {
@@ -3852,28 +4275,21 @@ function AppContent() {
     }, []);
 
     useEffect(() => {
-        if (currentTab === 'home' && mapRef.current) {
+        if (currentTab === 'map' && mapRef.current) {
             setTimeout(() => mapRef.current?.animateToRegion(region, 500), 100);
         }
     }, [currentTab, region]);
 
-    const checkAndSetRegistryRecord = async (lat: number, lng: number) => {
-        try {
-            const delta = 0.001;
-            const { data } = await supabase
-                .from('registry_views')
-                .select('id, jibun_address, xml_data')
-                .gte('lat', lat - delta)
-                .lte('lat', lat + delta)
-                .gte('lng', lng - delta)
-                .lte('lng', lng + delta)
-                .order('viewed_at', { ascending: false })
-                .limit(1);
-            setRegistryRecord(data && data.length > 0 ? data[0] : null);
-        } catch (_) {
-            setRegistryRecord(null);
-        }
-    };
+    // 로컬 캐시에서 lat/lng 범위로 등기 기록 조회 (DB 호출 없음)
+    const checkAndSetRegistryRecord = useCallback((lat: number, lng: number) => {
+        const delta = 0.001;
+        const match = allRegistryViews.find(r =>
+            r.lat != null && r.lng != null &&
+            Math.abs(r.lat - lat) <= delta &&
+            Math.abs(r.lng - lng) <= delta
+        );
+        setRegistryRecord(match ?? null);
+    }, [allRegistryViews]);
 
     const checkIsFavorite = async (id: string) => {
         try {
@@ -3911,6 +4327,11 @@ function AppContent() {
             setRegistryRecord(null);
             setIsFavorite(false);
         }
+    }, [selectedMarker, checkAndSetRegistryRecord]);
+
+    // 마커 변경 시 장소관리 모달 닫기
+    useEffect(() => {
+        setPlaceManagementVisible(false);
     }, [selectedMarker]);
 
     const handleGpsPress = async () => {
@@ -3941,8 +4362,8 @@ function AppContent() {
 
     const handleRefreshRegistry = () => {
         Alert.alert(
-            "등기부등본 갱신",
-            "등기부등본 정보를 갱신하시겠습니까?\n(등기발급 비용발생함)",
+            "이전 조회 기록 존재",
+            "이전 조회 기록이 존재합니다.\n갱신하시겠습니까?",
             [
                 { text: "취소", style: "cancel" },
                 {
@@ -3988,7 +4409,9 @@ function AppContent() {
                                     xml_data: info.xmlData || undefined,
                                 });
                             }
-                            await checkAndSetRegistryRecord(selectedMarker.latitude, selectedMarker.longitude);
+                            // 캐시 갱신 후 로컬 재조회
+                            await loadAllRegistryViews();
+                            checkAndSetRegistryRecord(selectedMarker.latitude, selectedMarker.longitude);
                             Alert.alert("완료", "등기부등본 정보가 갱신되었습니다.");
                         } catch (e: any) {
                             const msg: string = e.message || '갱신 중 오류가 발생했습니다.';
@@ -4008,7 +4431,10 @@ function AppContent() {
 
     const changeMapType = (type: MapType) => {
         if (mapType === type) return;
-        setLoadingMessage(type === 'cadastral' ? "지적도를 호출중입니다..." : "일반지도를 호출중입니다...");
+        const msg = type === 'cadastral' ? "지적도를 호출중입니다..."
+            : type === 'satellite' ? "위성지도를 호출중입니다..."
+            : "일반지도를 호출중입니다...";
+        setLoadingMessage(msg);
         setIsMapLoading(true);
         setTimeout(() => { setMapType(type); setIsMapLoading(false); }, 1500);
     };
@@ -4068,7 +4494,7 @@ function AppContent() {
     }, [propertyMarkers, propertyClusters, region]);
 
     const allMarkersForMap = useMemo(() => {
-        const items: import('./KakaoMapView').MapMarkerItem[] = [];
+        const items: import('./GoogleMapView').MapMarkerItem[] = [];
         if (clusteringEnabled && propertyClusters) {
             propertyClusters.forEach(cluster => {
                 if (cluster.count === 1) {
@@ -4111,11 +4537,18 @@ function AppContent() {
         switch (currentTab) {
             case 'home':
                 return (
+                    <HomeScreen
+                        onMoveToMap={() => setCurrentTab('map')}
+                        onShowRegistry={() => setCurrentTab('more')}
+                        onShowFavorites={() => setCurrentTab('more')}
+                    />
+                );
+            case 'map':
+                return (
                     <View style={styles.mapContainer}>
-                        <KakaoMapView
+                        <GoogleMapView
                             ref={mapRef}
                             style={styles.map}
-                            kakaoApiKey={KAKAO_API_KEY}
                             vworldApiKey={VWORLD_API_KEY}
                             initialRegion={region}
                             onRegionChangeComplete={(r) => setRegion(r)}
@@ -4133,7 +4566,7 @@ function AppContent() {
                             <TouchableOpacity
                                 style={[
                                     styles.tabButton,
-                                    elderlyMode && { paddingVertical: 12, paddingHorizontal: 18 },
+                                    elderlyMode && { paddingVertical: 12, paddingHorizontal: 14 },
                                     mapType === 'standard' && styles.activeTabButton,
                                 ]}
                                 onPress={() => changeMapType('standard')}
@@ -4146,7 +4579,7 @@ function AppContent() {
                             <TouchableOpacity
                                 style={[
                                     styles.tabButton,
-                                    elderlyMode && { paddingVertical: 12, paddingHorizontal: 18 },
+                                    elderlyMode && { paddingVertical: 12, paddingHorizontal: 14 },
                                     mapType === 'cadastral' && styles.activeTabButton,
                                 ]}
                                 onPress={() => changeMapType('cadastral')}
@@ -4155,6 +4588,19 @@ function AppContent() {
                                 accessibilityState={{ selected: mapType === 'cadastral' }}
                             >
                                 <Text style={[styles.tabButtonText, { fontSize: fs.md }, mapType === 'cadastral' && styles.activeTabButtonText]}>지적도</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.tabButton,
+                                    elderlyMode && { paddingVertical: 12, paddingHorizontal: 14 },
+                                    mapType === 'satellite' && styles.activeTabButton,
+                                ]}
+                                onPress={() => changeMapType('satellite')}
+                                accessibilityLabel="항공뷰로 전환"
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: mapType === 'satellite' }}
+                            >
+                                <Text style={[styles.tabButtonText, { fontSize: fs.md }, mapType === 'satellite' && styles.activeTabButtonText]}>항공뷰</Text>
                             </TouchableOpacity>
                         </View>
 
@@ -4222,7 +4668,17 @@ function AppContent() {
                                         style={styles.bottomPanelButtonRoadview}
                                         onPress={() => setStreetViewVisible(true)}
                                     >
-                                        <Text style={styles.bottomPanelButtonText}>🗺️ 로드뷰</Text>
+                                        <Text style={styles.bottomPanelButtonText}>📷 실제이미지</Text>
+                                    </TouchableOpacity>
+
+                                    {/* 장소관리 버튼 */}
+                                    <TouchableOpacity
+                                        style={[styles.bottomPanelButtonRoadview, { backgroundColor: '#2E7D32' }]}
+                                        onPress={() => setPlaceManagementVisible(true)}
+                                        accessibilityLabel="장소관리"
+                                        accessibilityRole="button"
+                                    >
+                                        <Text style={styles.bottomPanelButtonText}>📍 장소관리</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
@@ -4235,25 +4691,43 @@ function AppContent() {
                                             if (registryRecord) {
                                                 handleRefreshRegistry();
                                             } else {
-                                                setRegistryModalVisible(true);
+                                                Alert.alert(
+                                                    "등기부등본 조회",
+                                                    "등기부등본을 조회하시겠습니까?\n(열람비용 발생)",
+                                                    [
+                                                        { text: "취소", style: "cancel" },
+                                                        { text: "조회", onPress: () => setRegistryModalVisible(true) },
+                                                    ]
+                                                );
                                             }
                                         }}
-                                        accessibilityLabel={registryRecord ? '등기부등본 갱신, 조회 요금이 발생합니다' : '등기부등본 조회'}
+                                        accessibilityLabel="등기부등본 조회"
                                         accessibilityRole="button"
                                     >
                                         <Text style={[styles.bottomPanelButtonText, { fontSize: fs.md }]}>
-                                            {registryRecord ? '등기부등본갱신(조회요금 발생)' : '등기부등본 조회'}
+                                            등기부등본조회
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
                         )}
+
+                        {/* 장소관리 모달 */}
+                        {selectedMarker && (
+                            <PlaceManagementModal
+                                visible={placeManagementVisible}
+                                onClose={() => setPlaceManagementVisible(false)}
+                                latitude={selectedMarker.latitude}
+                                longitude={selectedMarker.longitude}
+                                address={selectedMarker.address}
+                            />
+                        )}
                     </View>
                 );
             case 'list':
-                return <BuildingListScreen onMoveToMap={() => setCurrentTab('home')} />;
+                return <BuildingListScreen onMoveToMap={() => setCurrentTab('map')} />;
             case 'more':
-                return <MoreScreen onMoveToMap={() => setCurrentTab('home')} />;
+                return <MoreScreen onMoveToMap={() => setCurrentTab('map')} />;
             default:
                 return null;
         }
@@ -4284,7 +4758,7 @@ function AppContent() {
                 <TouchableOpacity
                     style={styles.menuItem}
                     onPress={() => setCurrentTab('home')}
-                    accessibilityLabel="홈 화면, 지도 보기"
+                    accessibilityLabel="홈 대시보드"
                     accessibilityRole="tab"
                     accessibilityState={{ selected: currentTab === 'home' }}
                 >
@@ -4294,6 +4768,20 @@ function AppContent() {
                         currentTab === 'home' && styles.activeMenuText,
                         elderlyMode && currentTab === 'home' && { color: COLORS_HIGH_CONTRAST.primary, fontWeight: '800' },
                     ]}>홈</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => setCurrentTab('map')}
+                    accessibilityLabel="지도 보기"
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: currentTab === 'map' }}
+                >
+                    <Text style={[
+                        styles.menuText,
+                        { fontSize: fs.xl },
+                        currentTab === 'map' && styles.activeMenuText,
+                        elderlyMode && currentTab === 'map' && { color: COLORS_HIGH_CONTRAST.primary, fontWeight: '800' },
+                    ]}>지도</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.menuItem}
@@ -4384,10 +4872,6 @@ const SplashScreen = ({ progress, stage, visible, onHidden }: SplashProps) => {
         <Animated.View style={[splashStyles.container, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
             <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-            {/* 배경 그라디언트 효과 */}
-            <View style={splashStyles.bgTop} />
-            <View style={splashStyles.bgBottom} />
-
             {/* 로고 영역 */}
             <View style={splashStyles.logoArea}>
                 <View style={splashStyles.sunIcon}>
@@ -4411,7 +4895,7 @@ const SplashScreen = ({ progress, stage, visible, onHidden }: SplashProps) => {
             </View>
 
             {/* 하단 */}
-            <Text style={splashStyles.versionText}>v1.0</Text>
+            <Text style={splashStyles.versionText}>v{APP_VERSION}</Text>
         </Animated.View>
     );
 };
@@ -4420,19 +4904,10 @@ const splashStyles = StyleSheet.create({
     container: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 9999,
+        backgroundColor: '#000',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: 80,
-    },
-    bgTop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#0D2B4E',
-        bottom: '50%',
-    },
-    bgBottom: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#1A4A7A',
-        top: '50%',
     },
     logoArea: {
         alignItems: 'center',
@@ -4442,18 +4917,18 @@ const splashStyles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: 'rgba(255,200,0,0.15)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 20,
         borderWidth: 2,
-        borderColor: 'rgba(255,200,0,0.4)',
+        borderColor: 'rgba(255,255,255,0.2)',
     },
     sunEmoji: {
         fontSize: 52,
     },
     appTitle: {
-        fontSize: 28,
+        fontSize: 26,
         fontWeight: '700',
         color: '#FFFFFF',
         letterSpacing: 1,
@@ -4461,7 +4936,7 @@ const splashStyles = StyleSheet.create({
     },
     appSubtitle: {
         fontSize: 15,
-        color: 'rgba(255,255,255,0.65)',
+        color: '#CCCCCC',
         letterSpacing: 2,
     },
     loadingArea: {
@@ -4470,31 +4945,31 @@ const splashStyles = StyleSheet.create({
     },
     stageText: {
         fontSize: 13,
-        color: 'rgba(255,255,255,0.7)',
+        color: '#AAAAAA',
         marginBottom: 10,
         letterSpacing: 0.5,
     },
     percentText: {
         fontSize: 36,
         fontWeight: '700',
-        color: '#FFD700',
+        color: '#FFFFFF',
         marginBottom: 14,
     },
     progressTrack: {
         width: '100%',
         height: 6,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: '#333333',
         borderRadius: 3,
         overflow: 'hidden',
     },
     progressFill: {
         height: '100%',
-        backgroundColor: '#FFD700',
+        backgroundColor: '#FFFFFF',
         borderRadius: 3,
     },
     versionText: {
         fontSize: 12,
-        color: 'rgba(255,255,255,0.35)',
+        color: '#AAAAAA',
     },
 });
 
@@ -5044,7 +5519,7 @@ const styles = StyleSheet.create({
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
     // 더보기 메뉴
-    menuContainer: { flex: 1, padding: 16, gap: 12 },
+    menuContainer: { flex: 1, padding: 16, gap: 12, backgroundColor: '#fff' },
     menuButton: {
         padding: 18,
         backgroundColor: '#F8F9FA',

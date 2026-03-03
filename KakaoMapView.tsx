@@ -1,5 +1,6 @@
 import React, { forwardRef, useImperativeHandle, useRef, useCallback, useEffect } from 'react';
-import { WebView, WebViewMessageEvent, WebViewErrorEvent } from 'react-native-webview';
+import { WebView, WebViewMessageEvent } from 'react-native-webview';
+import type { WebViewErrorEvent } from 'react-native-webview/lib/WebViewTypes';
 
 export interface MapRegion {
     latitude: number;
@@ -64,7 +65,8 @@ function buildMapHTML(kakaoApiKey: string, initialRegion: MapRegion, vworldApiKe
   <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
   <style>
     *{margin:0;padding:0;box-sizing:border-box;}
-    html,body,#map{width:100%;height:100%;overflow:hidden;}
+    html,body{width:100%;height:100%;overflow:hidden;}
+    #map{position:fixed;top:0;left:0;right:0;bottom:0;}
   </style>
   <script type="text/javascript"
     src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${kakaoApiKey}&autoload=false"
@@ -447,7 +449,7 @@ const KakaoMapView = forwardRef<KakaoMapHandle, Props>((props, ref) => {
     return (
         <WebView
             ref={webViewRef}
-            source={{ html: htmlRef.current, baseUrl: 'about:blank' }}
+            source={{ html: htmlRef.current, baseUrl: 'http://localhost' }}
             style={[{ flex: 1 }, props.style]}
             javaScriptEnabled={true}
             domStorageEnabled={true}
