@@ -32,7 +32,6 @@ try {
     }
 } catch { /* expo-notifications 미설치 또는 Expo Go */ }
 
-const { width, height } = Dimensions.get('window');
 const RECENT_PLACES_KEY = 'recent_places';
 const FAVORITE_PLACES_KEY = 'favorite_places';
 const REGISTRY_CACHE_KEY = 'registry_cache';
@@ -40,6 +39,18 @@ const OFFLINE_QUEUE_KEY = 'offline_queue';
 const BUILDING_FILTER_KEY = 'building_filter';
 const NOTIFICATION_STORE_KEY = 'notification_store';
 const ELDERLY_MODE_KEY = 'elderly_mode';
+
+// ===== Haversine 거리 계산 (미터 단위) =====
+
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371e3;
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const dPhi = (lat2 - lat1) * Math.PI / 180;
+    const dLam = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLam / 2) ** 2;
+    return Math.floor(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
 
 // 태양광 설치 기준 면적 (㎡)
 const SOLAR_MIN_AREA_SMALL = 200;   // 소형 (필터 1단계)
@@ -460,13 +471,7 @@ const useMapStore = create<MapStore>((set, get) => ({
 
                     const itemLat = parseFloat(item.point.y);
                     const itemLng = parseFloat(item.point.x);
-                    const R = 6371e3;
-                    const φ1 = currentRegion.latitude * Math.PI / 180;
-                    const φ2 = itemLat * Math.PI / 180;
-                    const Δφ = (itemLat - currentRegion.latitude) * Math.PI / 180;
-                    const Δλ = (itemLng - currentRegion.longitude) * Math.PI / 180;
-                    const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-                    const distance = Math.floor(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+                    const distance = haversineDistance(currentRegion.latitude, currentRegion.longitude, itemLat, itemLng);
 
                     if (distance > 1000) return;
 
@@ -502,13 +507,7 @@ const useMapStore = create<MapStore>((set, get) => ({
                     fallbackJson.response.result.items.forEach((item: VWorldPlaceItem) => {
                         const itemLat = parseFloat(item.point.y);
                         const itemLng = parseFloat(item.point.x);
-                        const R = 6371e3;
-                        const φ1 = currentRegion.latitude * Math.PI / 180;
-                        const φ2 = itemLat * Math.PI / 180;
-                        const Δφ = (itemLat - currentRegion.latitude) * Math.PI / 180;
-                        const Δλ = (itemLng - currentRegion.longitude) * Math.PI / 180;
-                        const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
-                        const distance = Math.floor(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+                        const distance = haversineDistance(currentRegion.latitude, currentRegion.longitude, itemLat, itemLng);
                         if (distance > 1000) return;
                         finalBuildings.push({
                             id: item.id,
@@ -808,38 +807,41 @@ async function syncOfflineQueue(): Promise<number> {
 // ===== 마커 클러스터링 알고리즘 =====
 
 function clusterProperties(properties: Property[], latitudeDelta: number): PropertyCluster[] {
-    const clusterRadius = latitudeDelta * 1.2;
+    const cellSize = latitudeDelta * 1.2;
+    if (cellSize <= 0 || properties.length === 0) return [];
+
+    // Grid-based spatial hashing: O(n) instead of O(n²)
+    const grid = new Map<string, Property[]>();
+    for (const prop of properties) {
+        const key = `${Math.floor(prop.lat / cellSize)},${Math.floor(prop.lng / cellSize)}`;
+        const cell = grid.get(key);
+        if (cell) cell.push(prop);
+        else grid.set(key, [prop]);
+    }
+
     const clusters: PropertyCluster[] = [];
-    const assigned = new Set<string>();
+    for (const [, items] of grid) {
+        const avgLat = items.reduce((s, p) => s + p.lat, 0) / items.length;
+        const avgLng = items.reduce((s, p) => s + p.lng, 0) / items.length;
 
-    properties.forEach(prop => {
-        if (assigned.has(prop.property_id)) return;
-
-        const nearby = properties.filter(other => {
-            if (assigned.has(other.property_id)) return false;
-            return Math.abs(prop.lat - other.lat) < clusterRadius
-                && Math.abs(prop.lng - other.lng) < clusterRadius;
-        });
-
-        nearby.forEach(p => assigned.add(p.property_id));
-
-        const avgLat = nearby.reduce((s, p) => s + p.lat, 0) / nearby.length;
-        const avgLng = nearby.reduce((s, p) => s + p.lng, 0) / nearby.length;
-
-        const counts = nearby.reduce((acc, p) => {
-            acc[p.sales_status] = (acc[p.sales_status] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
-        const dominantStatus = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || '미접촉') as SalesStatus;
+        const counts: Record<string, number> = {};
+        for (const p of items) {
+            counts[p.sales_status] = (counts[p.sales_status] || 0) + 1;
+        }
+        let maxCount = 0;
+        let dominantStatus: SalesStatus = '미접촉';
+        for (const [status, count] of Object.entries(counts)) {
+            if (count > maxCount) { maxCount = count; dominantStatus = status as SalesStatus; }
+        }
 
         clusters.push({
-            id: `cluster-${prop.property_id}`,
+            id: `cluster-${items[0].property_id}`,
             coordinate: { latitude: avgLat, longitude: avgLng },
-            count: nearby.length,
-            items: nearby,
+            count: items.length,
+            items,
             dominantStatus,
         });
-    });
+    }
     return clusters;
 }
 
@@ -1020,7 +1022,7 @@ function useOnlineStatus(): boolean {
         };
 
         check();
-        const interval = setInterval(check, 30000);
+        const interval = setInterval(check, 60000);
         return () => { mounted = false; clearInterval(interval); };
     }, []);
 
@@ -1030,7 +1032,7 @@ function useOnlineStatus(): boolean {
 // ===== 오프라인 배너 컴포넌트 =====
 
 // GPS 버튼 반대편(왼쪽) 말풍선 형태 온/오프라인 표시
-const NetworkBubble = ({ isOnline }: { isOnline: boolean }) => {
+const NetworkBubble = React.memo(({ isOnline }: { isOnline: boolean }) => {
     const [prevOnline, setPrevOnline] = useState(isOnline);
     const [showOnline, setShowOnline] = useState(false);
     const fadeAnim = useRef(new Animated.Value(isOnline ? 0 : 1)).current;
@@ -1075,10 +1077,8 @@ const NetworkBubble = ({ isOnline }: { isOnline: boolean }) => {
             )}
         </>
     );
-};
+});
 
-// 기존 OfflineBanner는 더 이상 사용하지 않지만 타입 호환을 위해 유지
-const OfflineBanner = ({ isOnline, pendingCount }: { isOnline: boolean; pendingCount: number }) => null;
 
 const offlineStyles = StyleSheet.create({
     bubble: {
@@ -1125,22 +1125,6 @@ const offlineStyles = StyleSheet.create({
         borderRightColor: 'transparent',
         borderTopColor: '#18181B',
     },
-    // 아래는 기존 코드 호환용 (사용 안함)
-    banner: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 44,
-        backgroundColor: '#E53935',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        zIndex: 999,
-    },
-    bannerIcon: { fontSize: 18 },
-    bannerText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });
 
 // ===== Google Street View 모달 =====
@@ -1196,7 +1180,7 @@ function buildStreetViewHTML(lat: number, lng: number, googleKey: string): strin
 </html>`;
 }
 
-const StreetViewModal = ({
+const StreetViewModal = React.memo(({
     visible,
     onClose,
     latitude,
@@ -1253,7 +1237,7 @@ const StreetViewModal = ({
             </SafeAreaView>
         </Modal>
     );
-};
+});
 
 const svStyles = StyleSheet.create({
     header: {
@@ -1284,7 +1268,7 @@ const FILTER_AREA_OPTIONS = [
     { label: '1000㎡+', value: SOLAR_MIN_AREA_LARGE },
 ];
 
-const FilterBar = ({
+const FilterBar = React.memo(({
     filter,
     onChange,
     totalCount,
@@ -1383,7 +1367,7 @@ const FilterBar = ({
             )}
         </View>
     );
-};
+});
 
 const filterStyles = StyleSheet.create({
     wrapper: { backgroundColor: '#FAFAFA', borderBottomWidth: 1, borderBottomColor: '#E4E4E7' },
@@ -1718,7 +1702,7 @@ const PropertyDetailModal = ({
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, { maxHeight: height * 0.88 }]}>
+                <View style={[styles.modalContent, { maxHeight: Dimensions.get('window').height * 0.88 }]}>
                     {/* 헤더 */}
                     <View style={styles.propModalHeader}>
                         <Text style={[styles.propModalTitle, { fontSize: fs['2xl'] }]} numberOfLines={1}
@@ -2193,7 +2177,7 @@ const FEASIBILITY_ICONS: Record<SolarFeasibilityLevel, string> = {
     restricted: '!',
 };
 
-const LandUsePanel = ({
+const LandUsePanel = React.memo(({
     info,
     isLoading,
 }: {
@@ -2249,7 +2233,7 @@ const LandUsePanel = ({
             </Text>
         </View>
     );
-};
+});
 
 const landUseStyles = StyleSheet.create({
     container: {
@@ -2879,6 +2863,9 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                 <FlatList
                     data={searchResults}
                     keyExtractor={(item) => item.id}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={10}
+                    windowSize={5}
                     renderItem={({ item }) => (
                         <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
                             <View style={[styles.listItem, elderlyMode && { padding: 18 }]}>
@@ -2974,6 +2961,9 @@ const RecentPlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMov
             <FlatList
                 data={filtered}
                 keyExtractor={(item) => item.id}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={5}
                 renderItem={({ item }) => (
                     <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
                         <TouchableOpacity style={[styles.listItem, elderlyMode && { padding: 18 }]} onPress={() => {
@@ -3036,6 +3026,9 @@ const FavoritePlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onM
             <FlatList
                 data={filtered}
                 keyExtractor={(item) => item.id}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={5}
                 renderItem={({ item }) => (
                     <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
                         <TouchableOpacity style={[styles.listItem, elderlyMode && { padding: 18 }]} onPress={() => {
@@ -3197,6 +3190,9 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
                 <FlatList
                     data={filtered}
                     keyExtractor={(item) => item.id}
+                    removeClippedSubviews={true}
+                    maxToRenderPerBatch={10}
+                    windowSize={5}
                     renderItem={({ item }) => (
                         <View style={styles.listItemContainer}>
                             <TouchableOpacity
@@ -3249,7 +3245,7 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
             {/* 상세 보기 모달 */}
             <Modal visible={detailVisible} transparent animationType="slide" onRequestClose={() => setDetailVisible(false)}>
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { maxHeight: height * 0.88 }]}>
+                    <View style={[styles.modalContent, { maxHeight: Dimensions.get('window').height * 0.88 }]}>
                         <Text style={styles.modalTitle}>등기 열람 상세</Text>
                         {selectedRecord && (
                             <ScrollView showsVerticalScrollIndicator={false}>
@@ -4055,6 +4051,9 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
             <FlatList
                 data={filteredBuildings}
                 keyExtractor={(item) => item.id}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={5}
                 renderItem={({ item }) => (
                     <View style={[styles.listItemContainer, elderlyMode && { minHeight: 80 }]}>
                         <View style={[styles.listItem, elderlyMode && { padding: 18 }]}>
@@ -4237,11 +4236,12 @@ function AppContent() {
         return clusterProperties(filteredPropertyMarkers, region.latitudeDelta);
     }, [filteredPropertyMarkers, clusteringEnabled, region.latitudeDelta]);
 
-    // Supabase 매물 쿼리 (위치 기반)
+    // Supabase 매물 쿼리 (위치 기반) - toFixed(2)로 더 넓은 범위에서 캐시 활용
+    const regionKey = `${region.latitude.toFixed(2)},${region.longitude.toFixed(2)}`;
     const { data: properties, refetch: refetchProperties } = useQuery({
-        queryKey: ['properties', region.latitude.toFixed(3), region.longitude.toFixed(3)],
+        queryKey: ['properties', regionKey],
         queryFn: () => fetchPropertiesFromDB(region.latitude, region.longitude),
-        enabled: true,
+        staleTime: 2 * 60 * 1000, // 2분간 stale 방지
     });
 
     useEffect(() => {
@@ -4336,7 +4336,7 @@ function AppContent() {
         setPlaceManagementVisible(false);
     }, [selectedMarker]);
 
-    const handleGpsPress = async () => {
+    const handleGpsPress = useCallback(async () => {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') return;
@@ -4360,7 +4360,7 @@ function AppContent() {
             setIsMapLoading(false);
             Alert.alert("오류", "위치 정보를 가져올 수 없습니다.");
         }
-    };
+    }, []);
 
     const handleRefreshRegistry = () => {
         Alert.alert(
@@ -4431,7 +4431,7 @@ function AppContent() {
         );
     };
 
-    const changeMapType = (type: MapType) => {
+    const changeMapType = useCallback((type: MapType) => {
         if (mapType === type) return;
         const msg = type === 'cadastral' ? "지적도를 호출중입니다..."
             : type === 'satellite' ? "위성지도를 호출중입니다..."
@@ -4439,9 +4439,9 @@ function AppContent() {
         setLoadingMessage(msg);
         setIsMapLoading(true);
         setTimeout(() => { setMapType(type); setIsMapLoading(false); }, 1500);
-    };
+    }, [mapType]);
 
-    const handleMapPress = async (coordinate: { latitude: number; longitude: number }) => {
+    const handleMapPress = useCallback(async (coordinate: { latitude: number; longitude: number }) => {
         try {
             const addressResponse = await Location.reverseGeocodeAsync({
                 latitude: coordinate.latitude,
@@ -4469,12 +4469,12 @@ function AppContent() {
         } catch (error) {
             console.log("Reverse geocoding error", error);
         }
-    };
+    }, []);
 
-    const handlePropertyMarkerPress = (prop: Property) => {
+    const handlePropertyMarkerPress = useCallback((prop: Property) => {
         setSelectedProperty(prop);
         setPropertyModalVisible(true);
-    };
+    }, []);
 
     const handleMarkerPress = useCallback((markerId: string, markerType: string) => {
         if (markerType === 'property') {
@@ -5148,7 +5148,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#FAFAFA',
         borderRadius: 12,
         padding: 24,
-        width: width * 0.75,
+        width: Dimensions.get('window').width * 0.75,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: '#E4E4E7',
