@@ -1,4 +1,5 @@
 import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { View, Text } from 'react-native';
 import MapView, { Marker, WMSTile, PROVIDER_GOOGLE } from 'react-native-maps';
 
 export interface MapRegion {
@@ -138,8 +139,12 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
             {props.userLocation && (
                 <Marker
                     coordinate={props.userLocation}
-                    pinColor="red"
-                />
+                    anchor={{ x: 0.5, y: 0.5 }}
+                >
+                    <View style={{ backgroundColor: '#18181B', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1.5, borderColor: '#FAFAFA' }}>
+                        <Text style={{ color: '#FAFAFA', fontSize: 11, fontWeight: '600' }}>내위치</Text>
+                    </View>
+                </Marker>
             )}
         </MapView>
     );

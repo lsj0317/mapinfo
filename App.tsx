@@ -1084,20 +1084,21 @@ const offlineStyles = StyleSheet.create({
     bubble: {
         position: 'absolute',
         bottom: 135,
-        left: 20,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 16,
+        left: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 6,
+        borderWidth: 1,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
+        shadowOpacity: 0.15,
         shadowRadius: 4,
         elevation: 6,
         zIndex: 20,
     },
-    offlineBubble: { backgroundColor: '#E53935' },
-    onlineBubble: { backgroundColor: '#2E7D32' },
-    bubbleText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+    offlineBubble: { backgroundColor: '#18181B', borderColor: '#DC2626' },
+    onlineBubble: { backgroundColor: '#18181B', borderColor: '#27272A' },
+    bubbleText: { color: '#FAFAFA', fontSize: 11, fontWeight: '500' },
     offlineTail: {
         position: 'absolute',
         bottom: -7,
@@ -1109,7 +1110,7 @@ const offlineStyles = StyleSheet.create({
         borderTopWidth: 8,
         borderLeftColor: 'transparent',
         borderRightColor: 'transparent',
-        borderTopColor: '#E53935',
+        borderTopColor: '#18181B',
     },
     onlineTail: {
         position: 'absolute',
@@ -1122,7 +1123,7 @@ const offlineStyles = StyleSheet.create({
         borderTopWidth: 8,
         borderLeftColor: 'transparent',
         borderRightColor: 'transparent',
-        borderTopColor: '#2E7D32',
+        borderTopColor: '#18181B',
     },
     // 아래는 기존 코드 호환용 (사용 안함)
     banner: {
@@ -1161,7 +1162,7 @@ function buildStreetViewHTML(lat: number, lng: number, googleKey: string): strin
 <body>
   <div id="pano"></div>
   <div id="fallback">
-    <div id="fallback-icon">📷</div>
+    <div id="fallback-icon" style="font-size:48px;margin-bottom:16px;color:#888;">--</div>
     <p>이 위치에서는 실제이미지를 제공하지 않습니다.<br><small style="color:#aaa;margin-top:8px;display:block;">건물 외부 또는 주요 도로 주변으로 이동해 다시 시도하세요.</small></p>
   </div>
   <script>
@@ -1185,7 +1186,7 @@ function buildStreetViewHTML(lat: number, lng: number, googleKey: string): strin
       } catch(e) {
         document.getElementById('pano').style.display='none';
         document.getElementById('fallback').style.display='flex';
-        document.getElementById('fallback-icon').innerText='⚠️';
+        document.getElementById('fallback-icon').innerText='!';
         document.querySelector('#fallback p').innerText='로드 오류: '+e.message;
       }
     }
@@ -1219,7 +1220,7 @@ const StreetViewModal = ({
             <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
                 <View style={svStyles.header}>
                     <Text style={svStyles.title} numberOfLines={1}>
-                        📷 {title || '실제이미지'}
+                        {title || '실제이미지'}
                     </Text>
                     <TouchableOpacity onPress={onClose} style={svStyles.closeBtn}>
                         <Text style={svStyles.closeTxt}>닫기</Text>
@@ -1259,13 +1260,15 @@ const svStyles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#1A1A1A',
+        backgroundColor: '#09090B',
         paddingHorizontal: 16,
         paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#27272A',
     },
-    title: { color: '#fff', fontSize: 15, fontWeight: '700', flex: 1, marginRight: 12 },
-    closeBtn: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#444', borderRadius: 8 },
-    closeTxt: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    title: { color: '#FAFAFA', fontSize: 14, fontWeight: '600', flex: 1, marginRight: 12, letterSpacing: -0.3 },
+    closeBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#27272A', borderRadius: 6 },
+    closeTxt: { color: '#FAFAFA', fontSize: 13, fontWeight: '500' },
     loading: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
     noKey: { flex: 1, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center', padding: 32 },
     noKeyText: { color: '#fff', fontSize: 14, lineHeight: 24, textAlign: 'center' },
@@ -1312,7 +1315,7 @@ const FilterBar = ({
                 style={[filterStyles.header, hasActiveFilter && filterStyles.headerActive]}
                 onPress={() => setExpanded(e => !e)}
             >
-                <Text style={filterStyles.headerIcon}>{hasActiveFilter ? '🔆' : '🔽'}</Text>
+                <Text style={filterStyles.headerIcon}>{hasActiveFilter ? '·' : '›'}</Text>
                 <Text style={[filterStyles.headerText, hasActiveFilter && { color: '#1565C0' }]}>
                     필터{hasActiveFilter ? ' (적용중)' : ''}
                 </Text>
@@ -1370,7 +1373,7 @@ const FilterBar = ({
                         onPress={() => onChange({ ...filter, onlyHighPotential: !filter.onlyHighPotential })}
                     >
                         <Text style={filterStyles.toggleLabel}>
-                            ⚡ 고잠재력만 보기 (500㎡+ 공장/창고)
+                            고잠재력만 보기 (500㎡+ 공장/창고)
                         </Text>
                         <View style={[filterStyles.toggle, filter.onlyHighPotential && filterStyles.toggleOn]}>
                             <View style={[filterStyles.toggleThumb, filter.onlyHighPotential && filterStyles.toggleThumbOn]} />
@@ -1383,7 +1386,7 @@ const FilterBar = ({
 };
 
 const filterStyles = StyleSheet.create({
-    wrapper: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#eee' },
+    wrapper: { backgroundColor: '#FAFAFA', borderBottomWidth: 1, borderBottomColor: '#E4E4E7' },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -1391,23 +1394,23 @@ const filterStyles = StyleSheet.create({
         paddingVertical: 10,
         gap: 8,
     },
-    headerActive: { backgroundColor: '#E3F2FD' },
-    headerIcon: { fontSize: 16 },
-    headerText: { fontSize: 14, color: '#555', fontWeight: '600', flex: 1 },
-    countText: { fontSize: 12, color: '#888' },
-    resetBtn: { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#1565C0', borderRadius: 8 },
-    resetText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+    headerActive: { backgroundColor: '#F4F4F5' },
+    headerIcon: { fontSize: 14, color: '#71717A' },
+    headerText: { fontSize: 13, color: '#52525B', fontWeight: '500', flex: 1 },
+    countText: { fontSize: 11, color: '#A1A1AA' },
+    resetBtn: { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#18181B', borderRadius: 6 },
+    resetText: { color: '#FAFAFA', fontSize: 10, fontWeight: '600' },
     panel: { paddingHorizontal: 14, paddingBottom: 14 },
-    sectionLabel: { fontSize: 12, color: '#888', fontWeight: '600', marginBottom: 8, marginTop: 10 },
+    sectionLabel: { fontSize: 11, color: '#71717A', fontWeight: '500', marginBottom: 8, marginTop: 10 },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1.5, borderColor: '#ddd', backgroundColor: '#fff' },
-    chipActive: { borderColor: '#1565C0', backgroundColor: '#1565C0' },
-    chipText: { fontSize: 13, color: '#555', fontWeight: '600' },
-    chipTextActive: { color: '#fff' },
-    toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f0f0f0' },
-    toggleLabel: { fontSize: 13, color: '#333', flex: 1 },
-    toggle: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#ddd', padding: 2 },
-    toggleOn: { backgroundColor: '#1565C0' },
+    chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 6, borderWidth: 1, borderColor: '#E4E4E7', backgroundColor: '#fff' },
+    chipActive: { borderColor: '#18181B', backgroundColor: '#18181B' },
+    chipText: { fontSize: 12, color: '#52525B', fontWeight: '500' },
+    chipTextActive: { color: '#FAFAFA' },
+    toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E4E4E7' },
+    toggleLabel: { fontSize: 12, color: '#18181B', flex: 1 },
+    toggle: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#E4E4E7', padding: 2 },
+    toggleOn: { backgroundColor: '#18181B' },
     toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
     toggleThumbOn: { transform: [{ translateX: 20 }] },
 });
@@ -1537,15 +1540,17 @@ const PhotoSection = ({
 
 const photoStyles = StyleSheet.create({
     section: {
-        backgroundColor: '#F8F9FA',
-        borderRadius: 12,
+        backgroundColor: '#F4F4F5',
+        borderRadius: 8,
         padding: 14,
         marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-    addBtn: { backgroundColor: '#4A90E2', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-    addBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
-    empty: { fontSize: 13, color: '#aaa', textAlign: 'center', paddingVertical: 16 },
+    addBtn: { backgroundColor: '#18181B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+    addBtnText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500' },
+    empty: { fontSize: 12, color: '#A1A1AA', textAlign: 'center', paddingVertical: 16 },
     photoWrap: { marginRight: 10, borderRadius: 8, overflow: 'hidden' },
     photo: { width: 100, height: 100, borderRadius: 8 },
     deleteHint: { backgroundColor: 'rgba(0,0,0,0.4)', paddingVertical: 3, alignItems: 'center' },
@@ -1604,7 +1609,7 @@ const NotificationSection = ({ property }: { property: Property }) => {
 
             {scheduledInfo ? (
                 <View style={notifStyles.scheduledBox}>
-                    <Text style={notifStyles.scheduledIcon}>🔔</Text>
+                    <Text style={notifStyles.scheduledIcon}>N</Text>
                     <View style={{ flex: 1 }}>
                         <Text style={notifStyles.scheduledDate}>
                             {new Date(scheduledInfo.scheduledDate).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -1640,7 +1645,7 @@ const NotificationSection = ({ property }: { property: Property }) => {
                 </View>
             ) : (
                 <TouchableOpacity style={notifStyles.addBtn} onPress={() => setShowDatePicker(true)}>
-                    <Text style={notifStyles.addBtnText}>🔔 연락 예정일 알림 설정</Text>
+                    <Text style={notifStyles.addBtnText}>연락 예정일 알림 설정</Text>
                 </TouchableOpacity>
             )}
         </View>
@@ -1648,20 +1653,20 @@ const NotificationSection = ({ property }: { property: Property }) => {
 };
 
 const notifStyles = StyleSheet.create({
-    section: { backgroundColor: '#FFF8E1', borderRadius: 12, padding: 14, marginBottom: 12 },
+    section: { backgroundColor: '#F4F4F5', borderRadius: 8, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E4E4E7' },
     scheduledBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    scheduledIcon: { fontSize: 24 },
-    scheduledDate: { fontSize: 15, fontWeight: '700', color: '#333' },
-    scheduledSub: { fontSize: 12, color: '#888', marginTop: 2 },
-    cancelBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#F44336', borderRadius: 8 },
-    cancelBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-    addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FF9800', borderRadius: 10, paddingVertical: 12 },
-    addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    scheduledIcon: { fontSize: 16, color: '#18181B', fontWeight: '700' },
+    scheduledDate: { fontSize: 14, fontWeight: '600', color: '#18181B' },
+    scheduledSub: { fontSize: 11, color: '#71717A', marginTop: 2 },
+    cancelBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#18181B', borderRadius: 6 },
+    cancelBtnText: { color: '#FAFAFA', fontSize: 11, fontWeight: '500' },
+    addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderRadius: 8, paddingVertical: 12 },
+    addBtnText: { color: '#FAFAFA', fontSize: 13, fontWeight: '500' },
     pickerBox: {},
-    dateInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 15 },
+    dateInput: { borderWidth: 1, borderColor: '#E4E4E7', borderRadius: 8, padding: 10, fontSize: 14, backgroundColor: '#fff' },
     cancelTextBtn: { flex: 1, alignItems: 'center', paddingVertical: 10 },
-    confirmBtn: { flex: 2, backgroundColor: '#FF9800', borderRadius: 8, alignItems: 'center', paddingVertical: 10 },
-    confirmBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    confirmBtn: { flex: 2, backgroundColor: '#18181B', borderRadius: 6, alignItems: 'center', paddingVertical: 10 },
+    confirmBtnText: { color: '#FAFAFA', fontWeight: '600', fontSize: 13 },
 });
 
 // ===== PropertyDetailModal (Supabase 연동 영업관리 모달) =====
@@ -2183,9 +2188,9 @@ const SOLAR_COLORS: Record<SolarFeasibilityLevel, { bg: string; border: string; 
 };
 
 const FEASIBILITY_ICONS: Record<SolarFeasibilityLevel, string> = {
-    favorable: '✅',
-    neutral: 'ℹ️',
-    restricted: '⚠️',
+    favorable: '+',
+    neutral: '-',
+    restricted: '!',
 };
 
 const LandUsePanel = ({
@@ -2636,7 +2641,7 @@ const LoadingOverlay = ({ visible, message }: { visible: boolean; message: strin
     return (
         <Animated.View style={[styles.loadingOverlay, { opacity: fadeAnim }]} pointerEvents={visible ? 'auto' : 'none'}>
             <View style={styles.loadingBox}>
-                <ActivityIndicator size="large" color="#4A90E2" style={{ marginBottom: 20 }} />
+                <ActivityIndicator size="large" color="#71717A" style={{ marginBottom: 20 }} />
                 <Text style={styles.loadingText}>{message}</Text>
                 <View style={styles.progressBarContainer}>
                     <View style={[styles.progressBar, { width: `${progress}%` }]} />
@@ -2832,7 +2837,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
             {/* 로딩 */}
             {isLoading && (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#4A90E2" />
+                    <ActivityIndicator size="large" color="#71717A" />
                     <Text style={{ marginTop: 10, color: '#888' }}>검색 중...</Text>
                 </View>
             )}
@@ -2863,7 +2868,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                             style={styles.pendingConfirmButton}
                             onPress={confirmPendingResult}
                         >
-                            <Text style={styles.pendingConfirmButtonText}>✓ 확인 (목록에 추가)</Text>
+                            <Text style={styles.pendingConfirmButtonText}>확인 (목록에 추가)</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -2916,7 +2921,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                             onPress={() => setDaumModalVisible(false)}
                             style={styles.daumModalClose}
                         >
-                            <Text style={styles.daumModalCloseText}>✕ 닫기</Text>
+                            <Text style={styles.daumModalCloseText}>닫기</Text>
                         </TouchableOpacity>
                     </View>
                     <WebView
@@ -3178,14 +3183,14 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
                         style={styles.exportButton}
                         onPress={handleExportCSV}
                     >
-                        <Text style={styles.exportButtonText}>📋 CSV 내보내기</Text>
+                        <Text style={styles.exportButtonText}>CSV 내보내기</Text>
                     </TouchableOpacity>
                 </View>
             )}
 
             {isLoading ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#4A90E2" />
+                    <ActivityIndicator size="large" color="#71717A" />
                     <Text style={{ marginTop: 10, color: '#888' }}>열람 이력 로딩 중...</Text>
                 </View>
             ) : (
@@ -3574,11 +3579,11 @@ const PlaceManagementModal = ({ visible, onClose, latitude, longitude, address }
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' }}>
+                <View style={{ backgroundColor: '#FAFAFA', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: '80%' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
-                        <Text style={{ flex: 1, fontSize: fs.lg, fontWeight: '700', color: '#222' }}>📍 장소관리</Text>
+                        <Text style={{ flex: 1, fontSize: fs.lg, fontWeight: '700', color: '#222' }}>장소관리</Text>
                         <TouchableOpacity onPress={onClose}>
-                            <Text style={{ fontSize: 20, color: '#999' }}>✕</Text>
+                            <Text style={{ fontSize: 20, color: '#999' }}>X</Text>
                         </TouchableOpacity>
                     </View>
                     <Text style={{ fontSize: fs.sm, color: '#666', marginBottom: 14 }} numberOfLines={2}>{address}</Text>
@@ -3643,11 +3648,11 @@ const PlaceManagementModal = ({ visible, onClose, latitude, longitude, address }
                     />
 
                     <TouchableOpacity
-                        style={{ backgroundColor: '#2C3E50', borderRadius: 10, paddingVertical: 14, alignItems: 'center' }}
+                        style={{ backgroundColor: '#18181B', borderRadius: 8, paddingVertical: 12, alignItems: 'center' }}
                         onPress={handleSave}
                         disabled={isSaving}
                     >
-                        {isSaving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontSize: fs.base, fontWeight: '700' }}>저장</Text>}
+                        {isSaving ? <ActivityIndicator color="#FAFAFA" /> : <Text style={{ color: '#FAFAFA', fontSize: fs.base, fontWeight: '600' }}>저장</Text>}
                     </TouchableOpacity>
                 </View>
             </View>
@@ -3698,11 +3703,11 @@ const HomeScreen = ({ onMoveToMap, onShowRegistry, onShowFavorites }: HomeScreen
     const totalPlaces = Object.values(placeCounts).reduce((a, b) => a + b, 0);
 
     return (
-        <ScrollView style={{ flex: 1, backgroundColor: '#f5f5f5' }} contentContainerStyle={{ padding: 16 }}>
+        <ScrollView style={{ flex: 1, backgroundColor: '#FAFAFA' }} contentContainerStyle={{ padding: 16 }}>
             {/* 앱 타이틀 */}
             <View style={{ marginBottom: 20, marginTop: 8 }}>
-                <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#111' }}>태양광 영업지원 지도</Text>
-                <Text style={{ fontSize: fs.sm, color: '#888', marginTop: 4 }}>오늘도 좋은 영업 하세요!</Text>
+                <Text style={{ fontSize: fs['2xl'], fontWeight: '600', color: '#18181B', letterSpacing: -0.5 }}>태양광 영업지원</Text>
+                <Text style={{ fontSize: fs.sm, color: '#71717A', marginTop: 4 }}>오늘도 좋은 영업 하세요</Text>
             </View>
 
             {isLoading ? (
@@ -3711,54 +3716,51 @@ const HomeScreen = ({ onMoveToMap, onShowRegistry, onShowFavorites }: HomeScreen
                 <>
                     {/* 등기부등본 발급 내역 */}
                     <TouchableOpacity
-                        style={{ backgroundColor: '#fff', borderRadius: 14, padding: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 }}
+                        style={{ backgroundColor: '#fff', borderRadius: 8, padding: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E4E4E7' }}
                         onPress={onShowRegistry}
                     >
-                        <Text style={{ fontSize: 28, marginRight: 14 }}>📋</Text>
                         <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fs.base, fontWeight: '600', color: '#333' }}>등기부등본 발급 내역</Text>
-                            <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#1976D2', marginTop: 4 }}>
+                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#71717A' }}>등기부등본 발급 내역</Text>
+                            <Text style={{ fontSize: fs['2xl'], fontWeight: '600', color: '#18181B', marginTop: 4 }}>
                                 {registryCount ?? '-'}건
                             </Text>
                         </View>
-                        <Text style={{ fontSize: 18, color: '#ccc' }}>›</Text>
+                        <Text style={{ fontSize: 16, color: '#A1A1AA' }}>›</Text>
                     </TouchableOpacity>
 
                     {/* 즐겨찾는 장소 */}
                     <TouchableOpacity
-                        style={{ backgroundColor: '#fff', borderRadius: 14, padding: 18, marginBottom: 12, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 }}
+                        style={{ backgroundColor: '#fff', borderRadius: 8, padding: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#E4E4E7' }}
                         onPress={onShowFavorites}
                     >
-                        <Text style={{ fontSize: 28, marginRight: 14 }}>⭐</Text>
                         <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fs.base, fontWeight: '600', color: '#333' }}>즐겨찾는 장소</Text>
-                            <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#F57C00', marginTop: 4 }}>
+                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#71717A' }}>즐겨찾는 장소</Text>
+                            <Text style={{ fontSize: fs['2xl'], fontWeight: '600', color: '#18181B', marginTop: 4 }}>
                                 {favoritesCount ?? '-'}건
                             </Text>
                         </View>
-                        <Text style={{ fontSize: 18, color: '#ccc' }}>›</Text>
+                        <Text style={{ fontSize: 16, color: '#A1A1AA' }}>›</Text>
                     </TouchableOpacity>
 
                     {/* 장소관리 현황 */}
-                    <View style={{ backgroundColor: '#fff', borderRadius: 14, padding: 18, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 }}>
+                    <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: '#E4E4E7' }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                            <Text style={{ fontSize: 24, marginRight: 10 }}>📍</Text>
-                            <Text style={{ fontSize: fs.base, fontWeight: '600', color: '#333', flex: 1 }}>장소관리 현황</Text>
-                            <Text style={{ fontSize: fs.lg, fontWeight: '800', color: '#2E7D32' }}>{totalPlaces}건</Text>
+                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#71717A', flex: 1 }}>장소관리 현황</Text>
+                            <Text style={{ fontSize: fs.lg, fontWeight: '600', color: '#18181B' }}>{totalPlaces}건</Text>
                         </View>
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                             {PLACE_STATUSES.filter(s => s !== '미접촉').map(s => (
-                                <View key={s} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f0f0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
-                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: PLACE_STATUS_COLORS[s], marginRight: 6 }} />
-                                    <Text style={{ fontSize: fs.sm, color: '#555' }}>{s} {placeCounts[s]}건</Text>
+                                <View key={s} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F4F4F5', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: '#E4E4E7' }}>
+                                    <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: PLACE_STATUS_COLORS[s], marginRight: 6 }} />
+                                    <Text style={{ fontSize: fs.xs, color: '#52525B' }}>{s} {placeCounts[s]}건</Text>
                                 </View>
                             ))}
                         </View>
                         <TouchableOpacity
-                            style={{ marginTop: 14, backgroundColor: '#2C3E50', borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}
+                            style={{ marginTop: 14, backgroundColor: '#18181B', borderRadius: 6, paddingVertical: 10, alignItems: 'center' }}
                             onPress={onMoveToMap}
                         >
-                            <Text style={{ color: '#fff', fontSize: fs.sm, fontWeight: '600' }}>지도에서 장소관리 →</Text>
+                            <Text style={{ color: '#FAFAFA', fontSize: fs.sm, fontWeight: '500' }}>지도에서 장소관리</Text>
                         </TouchableOpacity>
                     </View>
                 </>
@@ -3821,10 +3823,10 @@ const ImprovementsScreen = ({ onBack }: { onBack: () => void }) => {
 
     if (selectedItem) {
         return (
-            <View style={{ flex: 1, backgroundColor: '#fff' }}>
-                <View style={[styles.header, { backgroundColor: '#111' }]}>
+            <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+                <View style={[styles.header, { backgroundColor: '#09090B' }]}>
                     <TouchableOpacity style={styles.headerIconWrap} onPress={() => setSelectedItem(null)}>
-                        <Text style={{ color: '#fff', fontSize: 18 }}>←</Text>
+                        <Text style={{ color: '#FAFAFA', fontSize: 16 }}>←</Text>
                     </TouchableOpacity>
                     <Text style={[styles.title, { fontSize: fs.lg }]} numberOfLines={1}>{selectedItem.title}</Text>
                 </View>
@@ -3847,10 +3849,10 @@ const ImprovementsScreen = ({ onBack }: { onBack: () => void }) => {
     }
 
     return (
-        <View style={{ flex: 1, backgroundColor: '#fff' }}>
-            <View style={[styles.header, { backgroundColor: '#111' }]}>
+        <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+            <View style={[styles.header, { backgroundColor: '#09090B' }]}>
                 <TouchableOpacity style={styles.headerIconWrap} onPress={onBack}>
-                    <Text style={{ color: '#fff', fontSize: 18 }}>←</Text>
+                    <Text style={{ color: '#FAFAFA', fontSize: 16 }}>←</Text>
                 </TouchableOpacity>
                 <Text style={[styles.title, { fontSize: fs.lg }]}>개선사항 / 공지</Text>
             </View>
@@ -4079,7 +4081,7 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
                                 accessibilityLabel={`${item.name} 지도에서 보기`}
                                 accessibilityRole="button"
                             >
-                                <Text style={{ color: '#4A90E2', fontSize: fs.md, fontWeight: '600' }}>보기</Text>
+                                <Text style={{ color: '#18181B', fontSize: fs.md, fontWeight: '500' }}>보기</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.listItemIconBtn, elderlyMode && { width: 44, height: 44, borderRadius: 22 }]}
@@ -4097,7 +4099,7 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
                 onRefresh={() => fetchBuildings(region, 1)}
                 onEndReached={() => { if (!isLoadingMore && !isLoading && hasMore) fetchBuildings(region, page + 1); }}
                 onEndReachedThreshold={0.5}
-                ListFooterComponent={isLoadingMore ? <ActivityIndicator style={{ padding: 16 }} color="#4A90E2" /> : null}
+                ListFooterComponent={isLoadingMore ? <ActivityIndicator style={{ padding: 16 }} color="#71717A" /> : null}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Text style={[styles.emptyText, { fontSize: fs.base, lineHeight: fs.base * 1.6 }]}>주변 1km 이내에 공장·창고·물류 건물이 없습니다.{'\n'}산업단지 주변으로 이동 후 새로고침 해주세요.</Text>
@@ -4612,7 +4614,7 @@ function AppContent() {
                             accessibilityLabel="현재 위치로 이동"
                             accessibilityRole="button"
                         >
-                            <Text style={[styles.gpsButtonText, elderlyMode && { fontSize: 30 }]}>🎯</Text>
+                            <Text style={[styles.gpsButtonText, elderlyMode && { fontSize: 14 }]}>GPS</Text>
                         </TouchableOpacity>
 
                         <LoadingOverlay visible={isMapLoading} message={loadingMessage} />
@@ -4658,7 +4660,7 @@ function AppContent() {
                                             accessibilityLabel="선택 해제"
                                             accessibilityRole="button"
                                         >
-                                            <Text style={[styles.bottomPanelIconText, { color: '#999', fontSize: elderlyMode ? 22 : 16 }]}>✕</Text>
+                                            <Text style={[styles.bottomPanelIconText, { color: '#999', fontSize: elderlyMode ? 22 : 16 }]}>X</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -4668,24 +4670,24 @@ function AppContent() {
                                         style={styles.bottomPanelButtonRoadview}
                                         onPress={() => setStreetViewVisible(true)}
                                     >
-                                        <Text style={styles.bottomPanelButtonText}>📷 실제이미지</Text>
+                                        <Text style={styles.bottomPanelButtonText}>실제이미지</Text>
                                     </TouchableOpacity>
 
                                     {/* 장소관리 버튼 */}
                                     <TouchableOpacity
-                                        style={[styles.bottomPanelButtonRoadview, { backgroundColor: '#2E7D32' }]}
+                                        style={[styles.bottomPanelButtonRoadview, { backgroundColor: '#27272A' }]}
                                         onPress={() => setPlaceManagementVisible(true)}
                                         accessibilityLabel="장소관리"
                                         accessibilityRole="button"
                                     >
-                                        <Text style={styles.bottomPanelButtonText}>📍 장소관리</Text>
+                                        <Text style={styles.bottomPanelButtonText}>장소관리</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
                                         style={[
                                             styles.bottomPanelButtonRegistry,
                                             elderlyMode && { paddingVertical: 14, borderRadius: 10 },
-                                            registryRecord ? { backgroundColor: '#1565C0' } : null,
+                                            registryRecord ? { backgroundColor: '#27272A' } : null,
                                         ]}
                                         onPress={() => {
                                             if (registryRecord) {
@@ -4735,20 +4737,17 @@ function AppContent() {
 
     return (
     <>
-        <StatusBar barStyle="light-content" backgroundColor="#000" translucent={false} />
+        <StatusBar barStyle="light-content" backgroundColor="#09090B" translucent={false} />
         <SafeAreaView style={styles.container}>
             {/* 네트워크 상태 말풍선 (모든 탭에서 표시) */}
             <NetworkBubble isOnline={isOnline} />
 
             <View style={[styles.header, elderlyMode && { height: 70 }]}>
-                <View style={styles.headerIconWrap}>
-                    <Text style={styles.headerIcon}>☀️</Text>
-                </View>
                 <Text
                     style={[styles.title, elderlyMode && { fontSize: fs['3xl'] }]}
                     accessibilityRole="header"
                 >
-                    태양광 영업지원 지도
+                    태양광 영업지원
                 </Text>
             </View>
 
@@ -4874,9 +4873,6 @@ const SplashScreen = ({ progress, stage, visible, onHidden }: SplashProps) => {
 
             {/* 로고 영역 */}
             <View style={splashStyles.logoArea}>
-                <View style={splashStyles.sunIcon}>
-                    <Text style={splashStyles.sunEmoji}>☀️</Text>
-                </View>
                 <Text style={splashStyles.appTitle}>태양광 영업지원</Text>
                 <Text style={splashStyles.appSubtitle}>지도 서비스</Text>
             </View>
@@ -4904,72 +4900,58 @@ const splashStyles = StyleSheet.create({
     container: {
         ...StyleSheet.absoluteFillObject,
         zIndex: 9999,
-        backgroundColor: '#000',
+        backgroundColor: '#09090B',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingVertical: 80,
     },
     logoArea: {
         alignItems: 'center',
-        marginTop: 40,
-    },
-    sunIcon: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 20,
-        borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.2)',
-    },
-    sunEmoji: {
-        fontSize: 52,
+        marginTop: 60,
     },
     appTitle: {
-        fontSize: 26,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        letterSpacing: 1,
-        marginBottom: 8,
+        fontSize: 22,
+        fontWeight: '600',
+        color: '#FAFAFA',
+        letterSpacing: -0.5,
+        marginBottom: 6,
     },
     appSubtitle: {
-        fontSize: 15,
-        color: '#CCCCCC',
-        letterSpacing: 2,
+        fontSize: 13,
+        color: '#71717A',
+        letterSpacing: 1,
     },
     loadingArea: {
-        width: '75%',
+        width: '70%',
         alignItems: 'center',
     },
     stageText: {
-        fontSize: 13,
-        color: '#AAAAAA',
+        fontSize: 12,
+        color: '#71717A',
         marginBottom: 10,
-        letterSpacing: 0.5,
     },
     percentText: {
-        fontSize: 36,
-        fontWeight: '700',
-        color: '#FFFFFF',
+        fontSize: 32,
+        fontWeight: '600',
+        color: '#FAFAFA',
         marginBottom: 14,
+        letterSpacing: -1,
     },
     progressTrack: {
         width: '100%',
-        height: 6,
-        backgroundColor: '#333333',
-        borderRadius: 3,
+        height: 3,
+        backgroundColor: '#27272A',
+        borderRadius: 2,
         overflow: 'hidden',
     },
     progressFill: {
         height: '100%',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 3,
+        backgroundColor: '#FAFAFA',
+        borderRadius: 2,
     },
     versionText: {
-        fontSize: 12,
-        color: '#AAAAAA',
+        fontSize: 11,
+        color: '#52525B',
     },
 });
 
@@ -4986,16 +4968,18 @@ export default function App() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#000',
+        backgroundColor: '#09090B',
         paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     },
     header: {
-        height: 60,
-        backgroundColor: '#000',
+        height: 52,
+        backgroundColor: '#09090B',
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#27272A',
     },
     headerIconWrap: {
         position: 'absolute',
@@ -5005,74 +4989,76 @@ const styles = StyleSheet.create({
     },
     headerIcon: { fontSize: 22 },
     title: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
+        color: '#FAFAFA',
+        fontSize: 16,
+        fontWeight: '600',
+        letterSpacing: -0.3,
     },
     mapContainer: { flex: 1, width: '100%', height: '100%' },
     map: { flex: 1, width: '100%', height: '100%' },
     floatingMenu: {
         position: 'absolute',
         bottom: 50,
-        left: 20,
-        right: 20,
-        backgroundColor: '#fff',
-        borderRadius: 30,
+        left: 16,
+        right: 16,
+        backgroundColor: '#18181B',
+        borderRadius: 12,
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',
-        height: 62,
-        paddingHorizontal: 8,
+        height: 56,
+        paddingHorizontal: 4,
+        borderWidth: 1,
+        borderColor: '#27272A',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
         elevation: 10,
         zIndex: 10,
     },
     menuItem: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%' },
-    menuText: { fontSize: 14, color: '#888', fontWeight: '600' },
-    activeMenuText: { color: '#000', fontWeight: 'bold' },
+    menuText: { fontSize: 13, color: '#71717A', fontWeight: '500' },
+    activeMenuText: { color: '#FAFAFA', fontWeight: '600' },
     gpsButton: {
         position: 'absolute',
         bottom: 130,
-        right: 20,
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: '#fff',
+        right: 16,
+        width: 44,
+        height: 44,
+        borderRadius: 10,
+        backgroundColor: '#18181B',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-        zIndex: 11,
-    },
-    gpsButtonText: { fontSize: 24 },
-    mapTypeContainer: {
-        position: 'absolute',
-        top: 20,
-        left: 20,
-        flexDirection: 'row',
-        backgroundColor: '#fff',
-        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#27272A',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
-        shadowRadius: 2,
-        elevation: 3,
+        shadowRadius: 4,
+        elevation: 5,
+        zIndex: 11,
+    },
+    gpsButtonText: { fontSize: 11, color: '#FAFAFA', fontWeight: '600', letterSpacing: -0.3 },
+    mapTypeContainer: {
+        position: 'absolute',
+        top: 16,
+        left: 16,
+        flexDirection: 'row',
+        backgroundColor: '#18181B',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#27272A',
         overflow: 'hidden',
     },
     tabButton: {
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        backgroundColor: '#fff',
+        paddingVertical: 7,
+        paddingHorizontal: 12,
+        backgroundColor: '#18181B',
     },
-    activeTabButton: { backgroundColor: '#000' },
-    tabButtonText: { fontSize: 13, color: '#555', fontWeight: '600' },
-    activeTabButtonText: { color: '#fff' },
+    activeTabButton: { backgroundColor: '#FAFAFA' },
+    tabButtonText: { fontSize: 12, color: '#71717A', fontWeight: '500' },
+    activeTabButtonText: { color: '#09090B' },
 
     // 하단 패널
     bottomPanel: {
@@ -5080,20 +5066,22 @@ const styles = StyleSheet.create({
         bottom: 125,
         left: 16,
         right: 16,
-        backgroundColor: '#fff',
-        borderRadius: 16,
+        backgroundColor: '#FAFAFA',
+        borderRadius: 12,
         padding: 16,
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
         elevation: 8,
         zIndex: 9,
     },
     bottomPanelHandle: {
-        width: 40,
-        height: 4,
-        backgroundColor: '#ddd',
+        width: 32,
+        height: 3,
+        backgroundColor: '#D4D4D8',
         borderRadius: 2,
         alignSelf: 'center',
         marginBottom: 12,
@@ -5112,8 +5100,8 @@ const styles = StyleSheet.create({
     bottomPanelIconBtn: {
         width: 34,
         height: 34,
-        borderRadius: 17,
-        backgroundColor: '#F5F5F5',
+        borderRadius: 8,
+        backgroundColor: '#F4F4F5',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -5122,8 +5110,8 @@ const styles = StyleSheet.create({
         padding: 6,
     },
     bottomPanelCloseText: { fontSize: 16, color: '#999' },
-    bottomPanelAddress: { fontSize: 14, color: '#333', fontWeight: '600', marginBottom: 4 },
-    bottomPanelCoord: { fontSize: 12, color: '#888', marginBottom: 4 },
+    bottomPanelAddress: { fontSize: 14, color: '#18181B', fontWeight: '600', marginBottom: 4, letterSpacing: -0.2 },
+    bottomPanelCoord: { fontSize: 11, color: '#A1A1AA', marginBottom: 4, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
     bottomPanelButtons: { flexDirection: 'row', gap: 8 },
     bottomPanelButton: {
         flex: 1,
@@ -5135,18 +5123,18 @@ const styles = StyleSheet.create({
     bottomPanelButtonRoadview: {
         paddingVertical: 10,
         paddingHorizontal: 14,
-        backgroundColor: '#2C3E50',
+        backgroundColor: '#18181B',
         borderRadius: 8,
         alignItems: 'center',
     },
     bottomPanelButtonRegistry: {
         flex: 1,
         paddingVertical: 10,
-        backgroundColor: '#E67E22',
+        backgroundColor: '#18181B',
         borderRadius: 8,
         alignItems: 'center',
     },
-    bottomPanelButtonText: { color: '#fff', fontSize: 12, fontWeight: '600', textAlign: 'center' },
+    bottomPanelButtonText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500', textAlign: 'center' },
 
     // 로딩 오버레이
     loadingOverlay: {
@@ -5157,16 +5145,18 @@ const styles = StyleSheet.create({
         zIndex: 100,
     },
     loadingBox: {
-        backgroundColor: '#fff',
-        borderRadius: 16,
+        backgroundColor: '#FAFAFA',
+        borderRadius: 12,
         padding: 24,
         width: width * 0.75,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
-    loadingText: { fontSize: 15, color: '#333', textAlign: 'center', marginBottom: 16 },
-    progressBarContainer: { width: '100%', height: 6, backgroundColor: '#eee', borderRadius: 3, overflow: 'hidden' },
-    progressBar: { height: '100%', backgroundColor: '#4A90E2', borderRadius: 3 },
-    progressText: { fontSize: 12, color: '#888', marginTop: 8 },
+    loadingText: { fontSize: 14, color: '#18181B', textAlign: 'center', marginBottom: 16 },
+    progressBarContainer: { width: '100%', height: 4, backgroundColor: '#E4E4E7', borderRadius: 2, overflow: 'hidden' },
+    progressBar: { height: '100%', backgroundColor: '#18181B', borderRadius: 2 },
+    progressText: { fontSize: 11, color: '#A1A1AA', marginTop: 8 },
 
     // 모달 (등기정보 Tilko)
     modalOverlay: {
@@ -5175,46 +5165,53 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
+        backgroundColor: '#FAFAFA',
+        borderTopLeftRadius: 16,
+        borderTopRightRadius: 16,
         padding: 20,
         paddingBottom: 34,
+        borderTopWidth: 1,
+        borderTopColor: '#E4E4E7',
     },
-    modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 16, textAlign: 'center' },
-    modalLabel: { fontSize: 13, color: '#888', fontWeight: '600', marginBottom: 4 },
+    modalTitle: { fontSize: 16, fontWeight: '600', color: '#18181B', marginBottom: 16, textAlign: 'center', letterSpacing: -0.3 },
+    modalLabel: { fontSize: 12, color: '#71717A', fontWeight: '500', marginBottom: 4 },
     modalInput: {
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: '#E4E4E7',
         borderRadius: 8,
         padding: 10,
         fontSize: 14,
         marginBottom: 10,
+        backgroundColor: '#fff',
     },
     modalSearchButton: {
-        backgroundColor: '#4A90E2',
+        backgroundColor: '#18181B',
         paddingVertical: 12,
         borderRadius: 8,
         alignItems: 'center',
     },
-    modalSearchButtonText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    modalSearchButtonText: { color: '#FAFAFA', fontWeight: '600', fontSize: 14 },
     modalResultBox: {
-        backgroundColor: '#F5F5F5',
-        borderRadius: 10,
+        backgroundColor: '#F4F4F5',
+        borderRadius: 8,
         padding: 14,
         marginBottom: 16,
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
-    modalResultLabel: { fontSize: 12, color: '#888', fontWeight: '600', marginBottom: 2 },
-    modalResultValue: { fontSize: 15, color: '#333', fontWeight: '600', marginBottom: 10 },
-    modalErrorText: { fontSize: 14, color: '#E74C3C', textAlign: 'center' },
+    modalResultLabel: { fontSize: 11, color: '#71717A', fontWeight: '500', marginBottom: 2 },
+    modalResultValue: { fontSize: 14, color: '#18181B', fontWeight: '600', marginBottom: 10 },
+    modalErrorText: { fontSize: 13, color: '#DC2626', textAlign: 'center' },
     modalCloseButton: {
         paddingVertical: 14,
-        backgroundColor: '#eee',
-        borderRadius: 10,
+        backgroundColor: '#F4F4F5',
+        borderRadius: 8,
         alignItems: 'center',
         marginTop: 8,
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
-    modalCloseButtonText: { fontSize: 16, color: '#555', fontWeight: '600' },
+    modalCloseButtonText: { fontSize: 14, color: '#52525B', fontWeight: '500' },
 
     // PropertyDetailModal
     propModalHeader: {
@@ -5223,27 +5220,29 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: 16,
     },
-    propModalTitle: { fontSize: 17, fontWeight: 'bold', color: '#333', flex: 1, marginRight: 10 },
+    propModalTitle: { fontSize: 16, fontWeight: '600', color: '#18181B', flex: 1, marginRight: 10, letterSpacing: -0.3 },
     statusBadge: {
         paddingHorizontal: 10,
         paddingVertical: 4,
-        borderRadius: 12,
+        borderRadius: 6,
     },
-    statusBadgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    statusBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
     propSection: {
-        backgroundColor: '#F8F9FA',
-        borderRadius: 12,
+        backgroundColor: '#F4F4F5',
+        borderRadius: 8,
         padding: 14,
         marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
-    propSectionTitle: { fontSize: 14, fontWeight: '700', color: '#333', marginBottom: 10 },
+    propSectionTitle: { fontSize: 13, fontWeight: '600', color: '#18181B', marginBottom: 10, letterSpacing: -0.2 },
     propRow: {
         flexDirection: 'row',
         marginBottom: 8,
         alignItems: 'flex-start',
     },
-    propLabel: { fontSize: 12, color: '#888', width: 80, flexShrink: 0, paddingTop: 2 },
-    propValue: { fontSize: 13, color: '#333', flex: 1, lineHeight: 20 },
+    propLabel: { fontSize: 11, color: '#71717A', width: 80, flexShrink: 0, paddingTop: 2 },
+    propValue: { fontSize: 13, color: '#18181B', flex: 1, lineHeight: 20 },
     statusGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -5253,13 +5252,13 @@ const styles = StyleSheet.create({
     statusChip: {
         paddingHorizontal: 14,
         paddingVertical: 7,
-        borderRadius: 20,
-        borderWidth: 1.5,
+        borderRadius: 6,
+        borderWidth: 1,
     },
-    statusChipText: { fontSize: 13, fontWeight: '600' },
+    statusChipText: { fontSize: 12, fontWeight: '500' },
     memoInput: {
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: '#E4E4E7',
         borderRadius: 8,
         padding: 10,
         fontSize: 14,
@@ -5281,70 +5280,76 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingVertical: 6,
-        backgroundColor: '#F5F5F5',
+        backgroundColor: '#F4F4F5',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E4E4E7',
     },
     exportButton: {
         paddingHorizontal: 12,
         paddingVertical: 6,
-        backgroundColor: '#4A90E2',
-        borderRadius: 8,
+        backgroundColor: '#18181B',
+        borderRadius: 6,
     },
     exportButtonText: {
-        color: '#fff',
-        fontSize: 12,
-        fontWeight: '700',
+        color: '#FAFAFA',
+        fontSize: 11,
+        fontWeight: '500',
     },
 
     propCancelButton: {
         flex: 1,
-        paddingVertical: 14,
-        backgroundColor: '#F5F5F5',
-        borderRadius: 10,
+        paddingVertical: 12,
+        backgroundColor: '#F4F4F5',
+        borderRadius: 8,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
-    propCancelButtonText: { fontSize: 15, color: '#555', fontWeight: '600' },
+    propCancelButtonText: { fontSize: 14, color: '#52525B', fontWeight: '500' },
     propSaveButton: {
         flex: 2,
-        paddingVertical: 14,
-        backgroundColor: '#4A90E2',
-        borderRadius: 10,
+        paddingVertical: 12,
+        backgroundColor: '#18181B',
+        borderRadius: 8,
         alignItems: 'center',
     },
-    propSaveButtonText: { fontSize: 15, color: '#fff', fontWeight: '700' },
+    propSaveButtonText: { fontSize: 14, color: '#FAFAFA', fontWeight: '600' },
 
     // 리스트 화면
-    listContainer: { flex: 1, backgroundColor: '#fff' },
+    listContainer: { flex: 1, backgroundColor: '#FAFAFA' },
     listHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: '#E4E4E7',
     },
-    listTitle: { fontSize: 15, fontWeight: '700', color: '#333' },
-    refreshText: { fontSize: 14, color: '#4A90E2' },
+    listTitle: { fontSize: 14, fontWeight: '600', color: '#18181B', letterSpacing: -0.2 },
+    refreshText: { fontSize: 13, color: '#52525B' },
     listItemContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
+        borderBottomColor: '#F4F4F5',
     },
     listItem: { flex: 1, padding: 16 },
     itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-    itemName: { fontSize: 15, fontWeight: '700', color: '#333', flex: 1 },
-    itemDistance: { fontSize: 12, color: '#888', marginLeft: 8 },
-    itemAddress: { fontSize: 13, color: '#666', marginTop: 2 },
-    itemDate: { fontSize: 12, color: '#aaa', marginTop: 2 },
+    itemName: { fontSize: 14, fontWeight: '600', color: '#18181B', flex: 1, letterSpacing: -0.2 },
+    itemDistance: { fontSize: 11, color: '#A1A1AA', marginLeft: 8 },
+    itemAddress: { fontSize: 12, color: '#71717A', marginTop: 2 },
+    itemDate: { fontSize: 11, color: '#A1A1AA', marginTop: 2 },
     categoryBadge: {
         alignSelf: 'flex-start',
-        backgroundColor: '#E3F2FD',
+        backgroundColor: '#F4F4F5',
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 4,
         marginBottom: 4,
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
-    categoryBadgeText: { fontSize: 11, color: '#1565C0', fontWeight: '600' },
+    categoryBadgeText: { fontSize: 10, color: '#52525B', fontWeight: '500' },
     listItemActions: {
         flexDirection: 'column',
         justifyContent: 'center',
@@ -5355,92 +5360,93 @@ const styles = StyleSheet.create({
     listItemIconBtn: {
         width: 36,
         height: 36,
-        borderRadius: 18,
-        backgroundColor: '#F5F5F5',
+        borderRadius: 8,
+        backgroundColor: '#F4F4F5',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
-    listItemIconText: { fontSize: 18 },
+    listItemIconText: { fontSize: 16 },
     moveButton: {
         flex: 1,
         paddingVertical: 8,
-        backgroundColor: '#4A90E2',
+        backgroundColor: '#18181B',
         borderRadius: 6,
         alignItems: 'center',
     },
-    moveButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+    moveButtonText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500' },
     favoriteButton: {
         flex: 1,
         paddingVertical: 8,
-        backgroundColor: '#F39C12',
+        backgroundColor: '#18181B',
         borderRadius: 6,
         alignItems: 'center',
     },
-    favoriteButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+    favoriteButtonText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500' },
 
     // 서브 화면
-    subScreenContainer: { flex: 1, backgroundColor: '#fff' },
+    subScreenContainer: { flex: 1, backgroundColor: '#FAFAFA' },
     subScreenHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: '#E4E4E7',
     },
-    subScreenTitle: { fontSize: 17, fontWeight: '700', color: '#333' },
+    subScreenTitle: { fontSize: 16, fontWeight: '600', color: '#18181B', letterSpacing: -0.3 },
     backButton: { padding: 4 },
-    backButtonText: { fontSize: 15, color: '#4A90E2' },
+    backButtonText: { fontSize: 14, color: '#52525B' },
     searchContainer: {
         flexDirection: 'row',
         padding: 12,
         gap: 8,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: '#E4E4E7',
     },
     searchInput: {
         flex: 1,
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: '#E4E4E7',
         borderRadius: 8,
         paddingHorizontal: 12,
         paddingVertical: 8,
         fontSize: 14,
+        backgroundColor: '#fff',
     },
     searchButton: {
-        backgroundColor: '#4A90E2',
+        backgroundColor: '#18181B',
         paddingHorizontal: 16,
         borderRadius: 8,
         justifyContent: 'center',
     },
-    searchButtonText: { color: '#fff', fontWeight: '600', fontSize: 14 },
+    searchButtonText: { color: '#FAFAFA', fontWeight: '500', fontSize: 13 },
     clearButton: { padding: 8, justifyContent: 'center' },
-    clearButtonText: { color: '#999', fontSize: 14 },
+    clearButtonText: { color: '#A1A1AA', fontSize: 13 },
     viewLocationButton: {
         paddingHorizontal: 12,
         paddingVertical: 8,
         marginRight: 8,
-        backgroundColor: '#4A90E2',
+        backgroundColor: '#18181B',
         borderRadius: 6,
     },
-    viewLocationButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+    viewLocationButtonText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500' },
 
     // 다음 주소검색
     daumSearchButton: {
         marginHorizontal: 12,
         marginTop: 12,
         marginBottom: 4,
-        paddingVertical: 13,
-        backgroundColor: '#FAE100',
-        borderRadius: 10,
+        paddingVertical: 12,
+        backgroundColor: '#18181B',
+        borderRadius: 8,
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#e8cf00',
     },
     daumSearchButtonText: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#3C1E1E',
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#FAFAFA',
     },
     daumModalHeader: {
         flexDirection: 'row',
@@ -5449,102 +5455,106 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-        backgroundColor: '#fff',
+        borderBottomColor: '#E4E4E7',
+        backgroundColor: '#FAFAFA',
     },
-    daumModalTitle: { fontSize: 17, fontWeight: '700', color: '#333' },
+    daumModalTitle: { fontSize: 16, fontWeight: '600', color: '#18181B', letterSpacing: -0.3 },
     daumModalClose: {
         paddingVertical: 6,
         paddingHorizontal: 12,
-        backgroundColor: '#F44336',
-        borderRadius: 8,
+        backgroundColor: '#18181B',
+        borderRadius: 6,
     },
-    daumModalCloseText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+    daumModalCloseText: { color: '#FAFAFA', fontSize: 13, fontWeight: '500' },
 
     // 위치 버튼 (검색결과 옆)
     locationButton: {
         paddingHorizontal: 10,
         paddingVertical: 10,
         marginRight: 10,
-        backgroundColor: '#4A90E2',
-        borderRadius: 8,
+        backgroundColor: '#18181B',
+        borderRadius: 6,
         minWidth: 62,
         alignItems: 'center',
     },
-    locationButtonText: { color: '#fff', fontSize: 12, fontWeight: '700', textAlign: 'center', lineHeight: 17 },
+    locationButtonText: { color: '#FAFAFA', fontSize: 11, fontWeight: '500', textAlign: 'center', lineHeight: 17 },
 
     // 다음 주소검색 확인 카드
     pendingCard: {
         marginHorizontal: 12,
         marginTop: 10,
-        backgroundColor: '#EEF6FF',
-        borderRadius: 12,
+        backgroundColor: '#FAFAFA',
+        borderRadius: 8,
         padding: 14,
-        borderWidth: 1.5,
-        borderColor: '#4A90E2',
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
     pendingCardBadge: {
         alignSelf: 'flex-start',
-        backgroundColor: '#4A90E2',
-        borderRadius: 6,
+        backgroundColor: '#18181B',
+        borderRadius: 4,
         paddingHorizontal: 8,
         paddingVertical: 3,
         marginBottom: 8,
     },
-    pendingCardBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-    pendingCardName: { fontSize: 15, fontWeight: '700', color: '#1a1a1a', marginBottom: 4 },
-    pendingCardAddress: { fontSize: 13, color: '#555', marginBottom: 4 },
-    pendingCardCoord: { fontSize: 11, color: '#999', marginBottom: 12 },
+    pendingCardBadgeText: { color: '#FAFAFA', fontSize: 10, fontWeight: '600' },
+    pendingCardName: { fontSize: 14, fontWeight: '600', color: '#18181B', marginBottom: 4, letterSpacing: -0.2 },
+    pendingCardAddress: { fontSize: 12, color: '#71717A', marginBottom: 4 },
+    pendingCardCoord: { fontSize: 10, color: '#A1A1AA', marginBottom: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
     pendingCardButtons: { flexDirection: 'row', gap: 10 },
     pendingCancelButton: {
         flex: 1,
         paddingVertical: 10,
-        backgroundColor: '#eee',
-        borderRadius: 8,
+        backgroundColor: '#F4F4F5',
+        borderRadius: 6,
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
-    pendingCancelButtonText: { fontSize: 14, color: '#666', fontWeight: '600' },
+    pendingCancelButtonText: { fontSize: 13, color: '#52525B', fontWeight: '500' },
     pendingConfirmButton: {
         flex: 2,
         paddingVertical: 10,
-        backgroundColor: '#4A90E2',
-        borderRadius: 8,
+        backgroundColor: '#18181B',
+        borderRadius: 6,
         alignItems: 'center',
     },
-    pendingConfirmButtonText: { fontSize: 14, color: '#fff', fontWeight: '700' },
+    pendingConfirmButtonText: { fontSize: 13, color: '#FAFAFA', fontWeight: '600' },
     deleteButton: { paddingHorizontal: 12, paddingVertical: 8 },
     deleteButtonText: { fontSize: 18 },
     emptyContainer: { padding: 40, alignItems: 'center' },
-    emptyText: { fontSize: 14, color: '#aaa', textAlign: 'center', lineHeight: 22 },
+    emptyText: { fontSize: 13, color: '#A1A1AA', textAlign: 'center', lineHeight: 22 },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
     // 더보기 메뉴
-    menuContainer: { flex: 1, padding: 16, gap: 12, backgroundColor: '#fff' },
+    menuContainer: { flex: 1, padding: 16, gap: 8, backgroundColor: '#FAFAFA' },
     menuButton: {
-        padding: 18,
-        backgroundColor: '#F8F9FA',
-        borderRadius: 12,
+        padding: 16,
+        backgroundColor: '#fff',
+        borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#eee',
+        borderColor: '#E4E4E7',
     },
-    menuButtonText: { fontSize: 16, color: '#333', fontWeight: '600' },
+    menuButtonText: { fontSize: 14, color: '#18181B', fontWeight: '500' },
 
     // 등기 조회내역 배지
     registryOwnerBadge: {
-        backgroundColor: '#E3F2FD',
+        backgroundColor: '#F4F4F5',
         paddingHorizontal: 8,
         paddingVertical: 3,
-        borderRadius: 10,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: '#E4E4E7',
     },
-    registryOwnerBadgeText: { fontSize: 11, color: '#1565C0', fontWeight: '700' },
+    registryOwnerBadgeText: { fontSize: 10, color: '#18181B', fontWeight: '600' },
     registryUnknownBadge: {
-        backgroundColor: '#F5F5F5',
+        backgroundColor: '#F4F4F5',
         paddingHorizontal: 8,
         paddingVertical: 3,
-        borderRadius: 10,
+        borderRadius: 4,
     },
-    registryUnknownBadgeText: { fontSize: 11, color: '#999' },
-    registryOwnerAddr: { fontSize: 12, color: '#555', marginBottom: 2 },
+    registryUnknownBadgeText: { fontSize: 10, color: '#A1A1AA' },
+    registryOwnerAddr: { fontSize: 11, color: '#71717A', marginBottom: 2 },
 
     // 스켈레톤
     skeletonBox: {
