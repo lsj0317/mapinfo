@@ -164,9 +164,9 @@ function buildMapHTML(kakaoApiKey: string, initialRegion: MapRegion, vworldApiKe
     }
 
     function userDotSvg() {
-      return '<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg">'
-        + '<circle cx="12" cy="12" r="11" fill="#4285F4" stroke="white" stroke-width="2.5"/>'
-        + '<circle cx="12" cy="12" r="4" fill="white"/>'
+      return '<svg width="52" height="24" xmlns="http://www.w3.org/2000/svg">'
+        + '<rect x="0" y="0" width="52" height="24" rx="6" fill="#18181B" stroke="#FAFAFA" stroke-width="1.5"/>'
+        + '<text x="26" y="16" text-anchor="middle" fill="#FAFAFA" font-size="11" font-family="sans-serif" font-weight="600">내위치</text>'
         + '</svg>';
     }
 
@@ -235,7 +235,7 @@ function buildMapHTML(kakaoApiKey: string, initialRegion: MapRegion, vworldApiKe
     window.rnSetUserLocation = function(lat, lng) {
       if (userMarker) { userMarker.setMap(null); userMarker = null; }
       if (lat != null && lng != null) {
-        var img = makeMarkerImage(userDotSvg(), 24, 24, 12, 12);
+        var img = makeMarkerImage(userDotSvg(), 52, 24, 26, 12);
         userMarker = new kakao.maps.Marker({
           position: new kakao.maps.LatLng(lat, lng),
           image: img,
