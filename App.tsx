@@ -4719,23 +4719,75 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                 <View style={{ width: 50 }} />
             </View>
 
-            {/* 스텝 인디케이터 */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 8 }}>
-                <View style={{
-                    width: 28, height: 28, borderRadius: 14, backgroundColor: '#18181B',
-                    alignItems: 'center', justifyContent: 'center',
-                }}>
-                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>1</Text>
-                </View>
-                <View style={{ width: 32, height: 2, backgroundColor: step === 'city' ? '#18181B' : '#E4E4E7' }} />
-                <View style={{
-                    width: 28, height: 28, borderRadius: 14,
-                    backgroundColor: step === 'city' ? '#18181B' : '#E4E4E7',
-                    alignItems: 'center', justifyContent: 'center',
-                }}>
-                    <Text style={{ color: step === 'city' ? '#fff' : '#A1A1AA', fontSize: 13, fontWeight: '700' }}>2</Text>
-                </View>
-            </View>
+            {/* 스텝 인디케이터 (4단계 게이지바) */}
+            {(() => {
+                const currentStep = step === 'province' ? 0 : 1; // 현재는 0,1 (추후 2,3 확장)
+                const totalSteps = 4;
+                const stepLabels = ['지역', '시군구', '상세', '결과'];
+
+                return (
+                    <View style={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            {Array.from({ length: totalSteps }).map((_, i) => {
+                                const isCompleted = i < currentStep;
+                                const isActive = i === currentStep;
+                                const isPending = i > currentStep;
+
+                                return (
+                                    <React.Fragment key={i}>
+                                        {/* 동그란 뱃지 */}
+                                        <View style={{
+                                            width: 32, height: 32, borderRadius: 16,
+                                            backgroundColor: isCompleted ? '#18181B' : isActive ? '#18181B' : '#E4E4E7',
+                                            alignItems: 'center', justifyContent: 'center',
+                                            borderWidth: isActive ? 3 : 0,
+                                            borderColor: isActive ? '#A1A1AA' : 'transparent',
+                                        }}>
+                                            {isCompleted ? (
+                                                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{'✓'}</Text>
+                                            ) : (
+                                                <Text style={{
+                                                    color: isActive ? '#fff' : '#A1A1AA',
+                                                    fontSize: 14, fontWeight: '700',
+                                                }}>{i + 1}</Text>
+                                            )}
+                                        </View>
+
+                                        {/* 게이지바 (마지막 스텝 뒤에는 없음) */}
+                                        {i < totalSteps - 1 && (
+                                            <View style={{
+                                                flex: 1, height: 4, backgroundColor: '#E4E4E7',
+                                                borderRadius: 2, marginHorizontal: 6, overflow: 'hidden',
+                                            }}>
+                                                <View style={{
+                                                    height: '100%', borderRadius: 2,
+                                                    backgroundColor: '#18181B',
+                                                    width: isCompleted ? '100%' : isActive ? '50%' : '0%',
+                                                }} />
+                                            </View>
+                                        )}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </View>
+                        {/* 스텝 라벨 */}
+                        <View style={{ flexDirection: 'row', marginTop: 8 }}>
+                            {stepLabels.map((label, i) => {
+                                const isActive = i === currentStep;
+                                const isCompleted = i < currentStep;
+                                return (
+                                    <View key={label} style={{ flex: i < totalSteps - 1 ? 1 : 0, alignItems: i === 0 ? 'flex-start' : i === totalSteps - 1 ? 'flex-end' : 'center' }}>
+                                        <Text style={{
+                                            fontSize: 11, fontWeight: isActive || isCompleted ? '700' : '500',
+                                            color: isActive ? '#18181B' : isCompleted ? '#3F3F46' : '#A1A1AA',
+                                        }}>{label}</Text>
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </View>
+                );
+            })()}
 
             {/* 메인 콘텐츠 */}
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}>
