@@ -69,6 +69,63 @@ export interface PlaceRecord {
     updated_at?: string;
 }
 
+// ===== 지역 테이블 타입 (Supabase regions 관련) =====
+
+// provinces 테이블: 도/광역시
+export interface ProvinceRecord {
+    id: string;           // uuid PK
+    name: string;         // 예: '서울특별시'
+    short_name: string;   // 예: '서울'
+    latitude: number;
+    longitude: number;
+    sort_order: number;   // 정렬 순서
+    created_at?: string;
+}
+
+// cities 테이블: 시/군/구
+export interface CityRecord {
+    id: string;           // uuid PK
+    province_id: string;  // FK → provinces.id
+    name: string;         // 예: '강남구'
+    latitude: number;
+    longitude: number;
+    sort_order: number;
+    created_at?: string;
+}
+
+/*
+  Supabase SQL (테이블 생성):
+
+  CREATE TABLE provinces (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      short_name TEXT NOT NULL,
+      latitude DOUBLE PRECISION NOT NULL,
+      longitude DOUBLE PRECISION NOT NULL,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT now()
+  );
+
+  CREATE TABLE cities (
+      id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+      province_id UUID NOT NULL REFERENCES provinces(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      latitude DOUBLE PRECISION NOT NULL,
+      longitude DOUBLE PRECISION NOT NULL,
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT now()
+  );
+
+  -- RLS 정책 (읽기 전용 공개)
+  ALTER TABLE provinces ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE cities ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY "provinces_read" ON provinces FOR SELECT USING (true);
+  CREATE POLICY "cities_read" ON cities FOR SELECT USING (true);
+
+  -- 인덱스
+  CREATE INDEX idx_cities_province_id ON cities(province_id);
+*/
+
 // 더미 데이터 (Supabase 미설정 시 또는 테스트용)
 // 주소: 경기도 오산시 가수동 55-5 (가수행복로 일대)
 export const DUMMY_PROPERTIES: Property[] = [

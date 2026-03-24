@@ -16,7 +16,7 @@ import { create } from 'zustand';
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { VWORLD_API_KEY, TILKO_API_KEY, IROS_USER_ID, IROS_USER_PASSWORD, EMONEY_NO1, EMONEY_NO2, EMONEY_PWD, KAKAO_API_KEY, GOOGLE_MAPS_API_KEY } from '@env';
 import forge from 'node-forge';
-import { supabase, type Property, type SalesStatus, type PlaceRecord, type PlaceStatus, type TargetType } from './lib/supabase';
+import { supabase, type Property, type SalesStatus, type PlaceRecord, type PlaceStatus, type TargetType, type ProvinceRecord, type CityRecord } from './lib/supabase';
 import { REGIONS, ZOOM_LEVEL, type ProvinceData, type CityData, type TownData } from './lib/regions';
 
 // 선택적 패키지 (설치 필요: npx expo install expo-image-picker expo-notifications)
@@ -4550,6 +4550,408 @@ const HomeScreen = ({ onSelectRegion, onSelectSearch, onSelectMap }: HomeScreenP
     );
 };
 
+// ===== RegionSelectScreen (토스 스타일 스텝 선택) =====
+
+// 전국 도/광역시 기본 데이터 (Supabase 미연결 시 폴백)
+const DEFAULT_PROVINCES: { name: string; short: string; lat: number; lng: number }[] = [
+    { name: '서울특별시', short: '서울', lat: 37.5665, lng: 126.9780 },
+    { name: '경기도', short: '경기', lat: 37.2750, lng: 127.0095 },
+    { name: '인천광역시', short: '인천', lat: 37.4563, lng: 126.7052 },
+    { name: '부산광역시', short: '부산', lat: 35.1796, lng: 129.0756 },
+    { name: '대구광역시', short: '대구', lat: 35.8714, lng: 128.6014 },
+    { name: '광주광역시', short: '광주', lat: 35.1595, lng: 126.8526 },
+    { name: '대전광역시', short: '대전', lat: 36.3504, lng: 127.3845 },
+    { name: '울산광역시', short: '울산', lat: 35.5384, lng: 129.3114 },
+    { name: '세종특별자치시', short: '세종', lat: 36.4800, lng: 127.2590 },
+    { name: '강원특별자치도', short: '강원', lat: 37.8228, lng: 128.1555 },
+    { name: '충청북도', short: '충북', lat: 36.6357, lng: 127.4917 },
+    { name: '충청남도', short: '충남', lat: 36.6588, lng: 126.6728 },
+    { name: '전북특별자치도', short: '전북', lat: 35.8203, lng: 127.1089 },
+    { name: '전라남도', short: '전남', lat: 34.8161, lng: 126.4629 },
+    { name: '경상북도', short: '경북', lat: 36.4919, lng: 128.8889 },
+    { name: '경상남도', short: '경남', lat: 35.4606, lng: 128.2132 },
+    { name: '제주특별자치도', short: '제주', lat: 33.4996, lng: 126.5312 },
+];
+
+const CITIES_PER_PAGE = 12;
+
+interface RegionSelectScreenProps {
+    onBack: () => void;
+    onComplete: (province: string, city: string, lat: number, lng: number) => void;
+}
+
+const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScreenProps) => {
+    const { elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
+
+    type Step = 'province' | 'city';
+    const [step, setStep] = useState<Step>('province');
+    const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+    const [selectedCity, setSelectedCity] = useState<string | null>(null);
+    const [cityPage, setCityPage] = useState(0);
+
+    // Supabase 데이터 상태
+    const [provinces, setProvinces] = useState<{ name: string; short: string; lat: number; lng: number; id?: string }[]>(DEFAULT_PROVINCES);
+    const [cities, setCities] = useState<{ name: string; lat: number; lng: number }[]>([]);
+    const [loadingProvinces, setLoadingProvinces] = useState(true);
+    const [loadingCities, setLoadingCities] = useState(false);
+
+    // Supabase에서 도/광역시 목록 로드
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('provinces')
+                    .select('id, name, short_name, latitude, longitude, sort_order')
+                    .order('sort_order', { ascending: true });
+                if (!cancelled && data && data.length > 0 && !error) {
+                    setProvinces(data.map((p: any) => ({
+                        id: p.id,
+                        name: p.name,
+                        short: p.short_name,
+                        lat: p.latitude,
+                        lng: p.longitude,
+                    })));
+                }
+            } catch {
+                // Supabase 미연결 시 폴백 데이터 유지
+            } finally {
+                if (!cancelled) setLoadingProvinces(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
+
+    // 선택된 도/광역시의 시/군/구 로드
+    const loadCities = useCallback(async (provinceName: string) => {
+        setLoadingCities(true);
+        setCities([]);
+        setCityPage(0);
+        setSelectedCity(null);
+
+        try {
+            // 1) Supabase에서 조회 시도
+            const provinceMatch = provinces.find(p => p.name === provinceName);
+            if (provinceMatch?.id) {
+                const { data, error } = await supabase
+                    .from('cities')
+                    .select('name, latitude, longitude, sort_order')
+                    .eq('province_id', provinceMatch.id)
+                    .order('sort_order', { ascending: true });
+                if (data && data.length > 0 && !error) {
+                    setCities(data.map((c: any) => ({ name: c.name, lat: c.latitude, lng: c.longitude })));
+                    setLoadingCities(false);
+                    return;
+                }
+            }
+
+            // 2) 폴백: regions.ts 로컬 데이터
+            const regionMatch = REGIONS.find(r => r.name === provinceName || r.short === provinceMatch?.short);
+            if (regionMatch) {
+                setCities(regionMatch.cities.map(c => ({ name: c.name, lat: c.latitude, lng: c.longitude })));
+            } else {
+                setCities([]);
+            }
+        } catch {
+            // 폴백: regions.ts
+            const shortName = provinces.find(p => p.name === provinceName)?.short;
+            const regionMatch = REGIONS.find(r => r.name === provinceName || r.short === shortName);
+            if (regionMatch) {
+                setCities(regionMatch.cities.map(c => ({ name: c.name, lat: c.latitude, lng: c.longitude })));
+            }
+        } finally {
+            setLoadingCities(false);
+        }
+    }, [provinces]);
+
+    const handleProvinceSelect = useCallback((name: string) => {
+        setSelectedProvince(prev => prev === name ? null : name);
+    }, []);
+
+    const handleNextFromProvince = useCallback(() => {
+        if (!selectedProvince) return;
+        loadCities(selectedProvince);
+        setStep('city');
+    }, [selectedProvince, loadCities]);
+
+    const handleCitySelect = useCallback((name: string) => {
+        setSelectedCity(prev => prev === name ? null : name);
+    }, []);
+
+    const handleNextFromCity = useCallback(() => {
+        if (!selectedProvince || !selectedCity) return;
+        const cityData = cities.find(c => c.name === selectedCity);
+        if (cityData) {
+            onComplete(selectedProvince, selectedCity, cityData.lat, cityData.lng);
+        }
+    }, [selectedProvince, selectedCity, cities, onComplete]);
+
+    const handleBack = useCallback(() => {
+        if (step === 'city') {
+            setStep('province');
+            setSelectedCity(null);
+            setCities([]);
+        } else {
+            onBack();
+        }
+    }, [step, onBack]);
+
+    // 페이징 계산
+    const totalPages = Math.ceil(cities.length / CITIES_PER_PAGE);
+    const pagedCities = cities.slice(cityPage * CITIES_PER_PAGE, (cityPage + 1) * CITIES_PER_PAGE);
+
+    const selectedProvinceShort = provinces.find(p => p.name === selectedProvince)?.short || '';
+
+    return (
+        <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+            {/* 헤더 */}
+            <View style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12,
+                backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E4E4E7',
+            }}>
+                <TouchableOpacity onPress={handleBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Text style={{ fontSize: fs.lg, color: '#18181B', fontWeight: '600' }}>{'< 뒤로'}</Text>
+                </TouchableOpacity>
+                <Text style={{ fontSize: fs.lg, fontWeight: '700', color: '#18181B' }}>지역으로 선택</Text>
+                <View style={{ width: 50 }} />
+            </View>
+
+            {/* 스텝 인디케이터 */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 8 }}>
+                <View style={{
+                    width: 28, height: 28, borderRadius: 14, backgroundColor: '#18181B',
+                    alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>1</Text>
+                </View>
+                <View style={{ width: 32, height: 2, backgroundColor: step === 'city' ? '#18181B' : '#E4E4E7' }} />
+                <View style={{
+                    width: 28, height: 28, borderRadius: 14,
+                    backgroundColor: step === 'city' ? '#18181B' : '#E4E4E7',
+                    alignItems: 'center', justifyContent: 'center',
+                }}>
+                    <Text style={{ color: step === 'city' ? '#fff' : '#A1A1AA', fontSize: 13, fontWeight: '700' }}>2</Text>
+                </View>
+            </View>
+
+            {/* 메인 콘텐츠 */}
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}>
+                {step === 'province' ? (
+                    <>
+                        {/* Step 1: 지역 선택 */}
+                        <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
+                            지역을 선택해주세요
+                        </Text>
+                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginBottom: 24 }}>
+                            조회하려는 도 또는 광역시를 선택하세요
+                        </Text>
+
+                        {loadingProvinces ? (
+                            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                                <ActivityIndicator size="large" color="#18181B" />
+                                <Text style={{ marginTop: 12, color: '#71717A', fontSize: fs.sm }}>지역 정보 로딩 중...</Text>
+                            </View>
+                        ) : (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                                {provinces.map(p => {
+                                    const isSelected = selectedProvince === p.name;
+                                    return (
+                                        <TouchableOpacity
+                                            key={p.name}
+                                            onPress={() => handleProvinceSelect(p.name)}
+                                            style={{
+                                                paddingHorizontal: 18,
+                                                paddingVertical: 12,
+                                                borderRadius: 20,
+                                                borderWidth: 1.5,
+                                                borderColor: isSelected ? '#18181B' : '#D4D4D8',
+                                                backgroundColor: isSelected ? '#18181B' : '#fff',
+                                                elevation: isSelected ? 3 : 1,
+                                                shadowColor: '#000',
+                                                shadowOpacity: isSelected ? 0.15 : 0.05,
+                                                shadowOffset: { width: 0, height: 1 },
+                                                shadowRadius: isSelected ? 4 : 2,
+                                            }}
+                                            accessibilityRole="radio"
+                                            accessibilityState={{ checked: isSelected }}
+                                            accessibilityLabel={p.name}
+                                        >
+                                            <Text style={{
+                                                fontSize: fs.base, fontWeight: isSelected ? '700' : '500',
+                                                color: isSelected ? '#FAFAFA' : '#3F3F46',
+                                            }}>
+                                                {p.short}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        )}
+
+                        {selectedProvince && (
+                            <View style={{
+                                marginTop: 24, backgroundColor: '#F4F4F5', borderRadius: 10, padding: 14,
+                                flexDirection: 'row', alignItems: 'center',
+                            }}>
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#18181B', marginRight: 10 }} />
+                                <Text style={{ fontSize: fs.base, color: '#18181B', fontWeight: '600' }}>
+                                    선택: {selectedProvince}
+                                </Text>
+                            </View>
+                        )}
+                    </>
+                ) : (
+                    <>
+                        {/* Step 2: 상세 지역 선택 */}
+                        <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
+                            상세 지역을 선택해주세요
+                        </Text>
+                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginBottom: 8 }}>
+                            {selectedProvinceShort} 내 시·군·구를 선택하세요
+                        </Text>
+
+                        {/* 선택된 도 표시 */}
+                        <View style={{
+                            backgroundColor: '#18181B', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6,
+                            alignSelf: 'flex-start', marginBottom: 20,
+                        }}>
+                            <Text style={{ color: '#FAFAFA', fontSize: fs.sm, fontWeight: '600' }}>{selectedProvinceShort}</Text>
+                        </View>
+
+                        {loadingCities ? (
+                            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                                <ActivityIndicator size="large" color="#18181B" />
+                                <Text style={{ marginTop: 12, color: '#71717A', fontSize: fs.sm }}>시·군·구 로딩 중...</Text>
+                            </View>
+                        ) : cities.length === 0 ? (
+                            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                                <Text style={{ color: '#71717A', fontSize: fs.base }}>등록된 시·군·구가 없습니다</Text>
+                            </View>
+                        ) : (
+                            <>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                                    {pagedCities.map(c => {
+                                        const isSelected = selectedCity === c.name;
+                                        return (
+                                            <TouchableOpacity
+                                                key={c.name}
+                                                onPress={() => handleCitySelect(c.name)}
+                                                style={{
+                                                    paddingHorizontal: 16,
+                                                    paddingVertical: 11,
+                                                    borderRadius: 10,
+                                                    borderWidth: 1.5,
+                                                    borderColor: isSelected ? '#18181B' : '#D4D4D8',
+                                                    backgroundColor: isSelected ? '#18181B' : '#fff',
+                                                    minWidth: 80,
+                                                    alignItems: 'center',
+                                                    elevation: isSelected ? 3 : 1,
+                                                    shadowColor: '#000',
+                                                    shadowOpacity: isSelected ? 0.15 : 0.05,
+                                                    shadowOffset: { width: 0, height: 1 },
+                                                    shadowRadius: isSelected ? 4 : 2,
+                                                }}
+                                                accessibilityRole="radio"
+                                                accessibilityState={{ checked: isSelected }}
+                                                accessibilityLabel={c.name}
+                                            >
+                                                <Text style={{
+                                                    fontSize: fs.base, fontWeight: isSelected ? '700' : '500',
+                                                    color: isSelected ? '#FAFAFA' : '#3F3F46',
+                                                }}>
+                                                    {c.name}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+
+                                {/* 페이징 */}
+                                {totalPages > 1 && (
+                                    <View style={{
+                                        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                                        marginTop: 20, gap: 16,
+                                    }}>
+                                        <TouchableOpacity
+                                            onPress={() => setCityPage(prev => Math.max(0, prev - 1))}
+                                            disabled={cityPage === 0}
+                                            style={{
+                                                paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8,
+                                                backgroundColor: cityPage === 0 ? '#F4F4F5' : '#18181B',
+                                            }}
+                                        >
+                                            <Text style={{ color: cityPage === 0 ? '#A1A1AA' : '#FAFAFA', fontSize: fs.sm, fontWeight: '600' }}>이전</Text>
+                                        </TouchableOpacity>
+                                        <Text style={{ fontSize: fs.sm, color: '#71717A', fontWeight: '600' }}>
+                                            {cityPage + 1} / {totalPages}
+                                        </Text>
+                                        <TouchableOpacity
+                                            onPress={() => setCityPage(prev => Math.min(totalPages - 1, prev + 1))}
+                                            disabled={cityPage >= totalPages - 1}
+                                            style={{
+                                                paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8,
+                                                backgroundColor: cityPage >= totalPages - 1 ? '#F4F4F5' : '#18181B',
+                                            }}
+                                        >
+                                            <Text style={{ color: cityPage >= totalPages - 1 ? '#A1A1AA' : '#FAFAFA', fontSize: fs.sm, fontWeight: '600' }}>다음</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
+                            </>
+                        )}
+
+                        {selectedCity && (
+                            <View style={{
+                                marginTop: 20, backgroundColor: '#F4F4F5', borderRadius: 10, padding: 14,
+                                flexDirection: 'row', alignItems: 'center',
+                            }}>
+                                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#18181B', marginRight: 10 }} />
+                                <Text style={{ fontSize: fs.base, color: '#18181B', fontWeight: '600' }}>
+                                    선택: {selectedProvinceShort} {'>'} {selectedCity}
+                                </Text>
+                            </View>
+                        )}
+                    </>
+                )}
+            </ScrollView>
+
+            {/* 하단 다음/완료 버튼 */}
+            <View style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 32,
+                backgroundColor: '#FAFAFA',
+                borderTopWidth: 1, borderTopColor: '#E4E4E7',
+            }}>
+                <TouchableOpacity
+                    onPress={step === 'province' ? handleNextFromProvince : handleNextFromCity}
+                    disabled={step === 'province' ? !selectedProvince : !selectedCity}
+                    style={{
+                        backgroundColor: (step === 'province' ? selectedProvince : selectedCity) ? '#18181B' : '#D4D4D8',
+                        borderRadius: 12, paddingVertical: 16, alignItems: 'center',
+                        elevation: (step === 'province' ? selectedProvince : selectedCity) ? 4 : 0,
+                        shadowColor: '#000',
+                        shadowOpacity: 0.15,
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowRadius: 6,
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={step === 'province' ? '다음 단계로' : '선택 완료'}
+                >
+                    <Text style={{
+                        fontSize: fs.lg, fontWeight: '700',
+                        color: (step === 'province' ? selectedProvince : selectedCity) ? '#FAFAFA' : '#A1A1AA',
+                    }}>
+                        {step === 'province' ? '다음' : '다음'}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+});
+
 // ===== PlaceDetailScreen =====
 
 const PlaceDetailScreen = ({ place, onBack, onMoveToMap }: {
@@ -6137,9 +6539,24 @@ function AppContent() {
             case 'home':
                 return (
                     <HomeScreen
-                        onSelectRegion={() => { setCurrentTab('map'); setRegionSelectorVisible(true); }}
+                        onSelectRegion={() => setCurrentTab('regionSelect')}
                         onSelectSearch={() => setCurrentTab('map')}
                         onSelectMap={() => setCurrentTab('map')}
+                    />
+                );
+            case 'regionSelect':
+                return (
+                    <RegionSelectScreen
+                        onBack={() => setCurrentTab('home')}
+                        onComplete={(province, city, lat, lng) => {
+                            const newRegion = { latitude: lat, longitude: lng, latitudeDelta: 0.08, longitudeDelta: 0.08 };
+                            setRegion(newRegion);
+                            animateActiveMap(newRegion, 600);
+                            const shortName = DEFAULT_PROVINCES.find(p => p.name === province)?.short || province;
+                            setSelectedRegionLabel(`${shortName} ${city}`);
+                            AsyncStorage.setItem(SELECTED_REGION_KEY, `${shortName} ${city}`).catch(() => {});
+                            setCurrentTab('map');
+                        }}
                     />
                 );
             case 'map':
@@ -6466,8 +6883,8 @@ function AppContent() {
 
             {renderContent()}
 
-            {/* 하단 탭바 (3탭) */}
-            <View style={[styles.floatingMenu, elderlyMode && { height: 72, bottom: 40 }]}>
+            {/* 하단 탭바 (3탭) - regionSelect 시 숨김 */}
+            {currentTab !== 'regionSelect' && <View style={[styles.floatingMenu, elderlyMode && { height: 72, bottom: 40 }]}>
                 {([
                     { id: 'map',  label: '지도',  a11y: '지도 탭' },
                     { id: 'home', label: '홈',    a11y: '홈 탭' },
@@ -6492,7 +6909,7 @@ function AppContent() {
                         </TouchableOpacity>
                     );
                 })}
-            </View>
+            </View>}
 
             {/* 등기정보 Modal (Tilko API) */}
             <RegistryInfoModal
