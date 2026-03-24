@@ -4707,6 +4707,64 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
 
     const handleNextFromCategory = useCallback(() => {
         if (!selectedProvince || !selectedCity || !selectedCategory) return;
+        setStep('result');
+    }, [selectedProvince, selectedCity, selectedCategory]);
+
+    // result 스텝: 검색 건수 조회
+    const [resultCount, setResultCount] = useState<number | null>(null);
+    const [resultLoading, setResultLoading] = useState(false);
+
+    useEffect(() => {
+        if (step !== 'result' || !selectedProvince || !selectedCity || !selectedCategory) return;
+        let cancelled = false;
+        setResultLoading(true);
+        setResultCount(null);
+
+        (async () => {
+            try {
+                const cityData = cities.find(c => c.name === selectedCity);
+                if (!cityData) return;
+
+                const SEARCH_RADIUS = 0.05;
+                const bbox = `${cityData.lng - SEARCH_RADIUS},${cityData.lat - SEARCH_RADIUS},${cityData.lng + SEARCH_RADIUS},${cityData.lat + SEARCH_RADIUS}`;
+
+                const keywordMap: Record<PlaceCategoryType, string[]> = {
+                    building: ['아파트', '주택', '다세대'],
+                    commercial: ['상가', '오피스텔', '빌딩'],
+                    industrial: ['공장', '창고', '물류'],
+                };
+                const keywords = keywordMap[selectedCategory] || [];
+
+                const responses = await Promise.all(
+                    keywords.map(keyword =>
+                        fetch(`https://api.vworld.kr/req/search?service=search&request=search&version=2.0&crs=EPSG:4326&size=1&page=1&query=${encodeURIComponent(keyword)}&type=place&format=json&errorformat=json&bbox=${bbox}&key=${VWORLD_API_KEY}`)
+                            .then(r => r.json())
+                            .catch(() => null)
+                    )
+                );
+
+                if (cancelled) return;
+                let total = 0;
+                responses.forEach((json: any) => {
+                    if (json?.response?.record?.total) {
+                        total += parseInt(json.response.record.total, 10);
+                    } else if (json?.response?.status === 'OK' && json?.response?.result?.items) {
+                        total += json.response.result.items.length;
+                    }
+                });
+                setResultCount(total);
+            } catch {
+                if (!cancelled) setResultCount(0);
+            } finally {
+                if (!cancelled) setResultLoading(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [step, selectedProvince, selectedCity, selectedCategory, cities]);
+
+    const handleConfirmResult = useCallback(() => {
+        if (!selectedProvince || !selectedCity || !selectedCategory) return;
         const cityData = cities.find(c => c.name === selectedCity);
         if (cityData) {
             onComplete(selectedProvince, selectedCity, selectedCategory, cityData.lat, cityData.lng);
@@ -4714,7 +4772,9 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
     }, [selectedProvince, selectedCity, selectedCategory, cities, onComplete]);
 
     const handleBack = useCallback(() => {
-        if (step === 'category') {
+        if (step === 'result') {
+            setStep('category');
+        } else if (step === 'category') {
             setStep('city');
         } else if (step === 'city') {
             setStep('province');
@@ -5153,62 +5213,229 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                         </View>
                     </>
                 )}
-            </ScrollView>
 
-            {/* 하단 이전/다음 버튼 */}
-            <View style={{
-                position: 'absolute', bottom: 0, left: 0, right: 0,
-                paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 32,
-                backgroundColor: '#FAFAFA',
-                borderTopWidth: 1, borderTopColor: '#E4E4E7',
-                flexDirection: 'row', gap: 12,
-            }}>
-                {/* 이전 버튼 */}
-                <TouchableOpacity
-                    onPress={handleBack}
-                    style={{
-                        flex: 1,
-                        backgroundColor: '#fff',
-                        borderRadius: 12, paddingVertical: 16, alignItems: 'center',
-                        borderWidth: 1.5, borderColor: '#D4D4D8',
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="이전 단계로"
-                >
-                    <Text style={{ fontSize: fs.lg, fontWeight: '700', color: '#3F3F46' }}>이전</Text>
-                </TouchableOpacity>
+                {step === 'result' && (
+                    <>
+                        {/* Step 4: 검색 결과 확인 */}
+                        <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
+                            검색 조건 확인
+                        </Text>
+                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginBottom: 24 }}>
+                            선택하신 내용이 맞는지 확인해주세요
+                        </Text>
 
-                {/* 다음 버튼 */}
-                {(() => {
-                    const nextHandler = step === 'province' ? handleNextFromProvince : step === 'city' ? handleNextFromCity : handleNextFromCategory;
-                    const isEnabled = step === 'province' ? !!selectedProvince : step === 'city' ? !!selectedCity : !!selectedCategory;
-                    return (
+                        {/* 요약 카드 */}
+                        <View style={{
+                            backgroundColor: '#fff', borderRadius: 20, padding: 28,
+                            borderWidth: 1.5, borderColor: '#E4E4E7',
+                            elevation: 3, shadowColor: '#000', shadowOpacity: 0.08,
+                            shadowOffset: { width: 0, height: 2 }, shadowRadius: 8,
+                            marginBottom: 20,
+                        }}>
+                            {/* 지역 */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                                <View style={{
+                                    width: 44, height: 44, borderRadius: 12,
+                                    backgroundColor: '#F4F4F5', alignItems: 'center', justifyContent: 'center',
+                                    marginRight: 14,
+                                }}>
+                                    {/* 핀 아이콘 */}
+                                    <View style={{ alignItems: 'center' }}>
+                                        <View style={{
+                                            width: 16, height: 16, borderRadius: 8,
+                                            borderWidth: 3, borderColor: '#3F3F46', backgroundColor: 'transparent',
+                                        }} />
+                                        <View style={{
+                                            width: 0, height: 0, marginTop: -2,
+                                            borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 8,
+                                            borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                            borderTopColor: '#3F3F46',
+                                        }} />
+                                    </View>
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: fs.xs, color: '#A1A1AA', fontWeight: '500', marginBottom: 2 }}>지역</Text>
+                                    <Text style={{ fontSize: fs.xl, fontWeight: '700', color: '#18181B' }}>
+                                        {selectedProvinceShort} {selectedCity}
+                                    </Text>
+                                </View>
+                            </View>
+
+                            {/* 구분선 */}
+                            <View style={{ height: 1, backgroundColor: '#F4F4F5', marginBottom: 20 }} />
+
+                            {/* 카테고리 */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <View style={{
+                                    width: 44, height: 44, borderRadius: 12,
+                                    backgroundColor: '#F4F4F5', alignItems: 'center', justifyContent: 'center',
+                                    marginRight: 14,
+                                }}>
+                                    {/* 카테고리별 아이콘 */}
+                                    {selectedCategory === 'building' && (
+                                        <View style={{ alignItems: 'center' }}>
+                                            <View style={{
+                                                width: 0, height: 0,
+                                                borderLeftWidth: 10, borderRightWidth: 10, borderBottomWidth: 9,
+                                                borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                                borderBottomColor: '#3F3F46', marginBottom: -1,
+                                            }} />
+                                            <View style={{ width: 14, height: 10, backgroundColor: '#3F3F46', borderBottomLeftRadius: 2, borderBottomRightRadius: 2 }} />
+                                        </View>
+                                    )}
+                                    {selectedCategory === 'commercial' && (
+                                        <View style={{
+                                            width: 16, height: 22, backgroundColor: '#3F3F46',
+                                            borderRadius: 2, justifyContent: 'center', alignItems: 'center', paddingTop: 3,
+                                        }}>
+                                            {[0, 1, 2].map(row => (
+                                                <View key={row} style={{ flexDirection: 'row', gap: 3, marginBottom: 2 }}>
+                                                    <View style={{ width: 3, height: 2, backgroundColor: '#F4F4F5', borderRadius: 0.5 }} />
+                                                    <View style={{ width: 3, height: 2, backgroundColor: '#F4F4F5', borderRadius: 0.5 }} />
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+                                    {selectedCategory === 'industrial' && (
+                                        <View style={{ alignItems: 'center' }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+                                                <View style={{ width: 3, height: 7, backgroundColor: '#3F3F46', marginRight: 1, borderTopLeftRadius: 1, borderTopRightRadius: 1 }} />
+                                                <View style={{
+                                                    width: 0, height: 0,
+                                                    borderLeftWidth: 6, borderRightWidth: 6, borderBottomWidth: 7,
+                                                    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                                    borderBottomColor: '#3F3F46',
+                                                }} />
+                                                <View style={{
+                                                    width: 0, height: 0, marginLeft: -1,
+                                                    borderLeftWidth: 6, borderRightWidth: 6, borderBottomWidth: 7,
+                                                    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                                    borderBottomColor: '#3F3F46',
+                                                }} />
+                                            </View>
+                                            <View style={{ width: 22, height: 7, backgroundColor: '#3F3F46', borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginTop: -1 }} />
+                                        </View>
+                                    )}
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={{ fontSize: fs.xs, color: '#A1A1AA', fontWeight: '500', marginBottom: 2 }}>건물 유형</Text>
+                                    <Text style={{ fontSize: fs.xl, fontWeight: '700', color: '#18181B' }}>
+                                        {selectedCategory === 'building' ? '일반건축물' : selectedCategory === 'commercial' ? '상가' : '공단'}
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* 검색 건수 */}
+                        <View style={{
+                            backgroundColor: '#18181B', borderRadius: 16, padding: 20,
+                            alignItems: 'center', marginBottom: 24,
+                        }}>
+                            {resultLoading ? (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                    <ActivityIndicator color="#FAFAFA" size="small" />
+                                    <Text style={{ fontSize: fs.lg, color: '#A1A1AA', fontWeight: '600' }}>
+                                        검색 중입니다...
+                                    </Text>
+                                </View>
+                            ) : (
+                                <Text style={{ fontSize: fs.xl, fontWeight: '700', color: '#FAFAFA' }}>
+                                    {resultCount !== null && resultCount > 0
+                                        ? `총 ${resultCount}건 찾았습니다`
+                                        : '검색 준비 완료'}
+                                </Text>
+                            )}
+                        </View>
+
+                        {/* 지도에서 보기 버튼 */}
                         <TouchableOpacity
-                            onPress={nextHandler}
-                            disabled={!isEnabled}
+                            onPress={handleConfirmResult}
                             style={{
-                                flex: 2,
-                                backgroundColor: isEnabled ? '#18181B' : '#D4D4D8',
-                                borderRadius: 12, paddingVertical: 16, alignItems: 'center',
-                                elevation: isEnabled ? 4 : 0,
-                                shadowColor: '#000',
-                                shadowOpacity: 0.15,
-                                shadowOffset: { width: 0, height: 2 },
-                                shadowRadius: 6,
+                                backgroundColor: '#18181B', borderRadius: 16,
+                                paddingVertical: 20, alignItems: 'center',
+                                elevation: 6, shadowColor: '#000', shadowOpacity: 0.2,
+                                shadowOffset: { width: 0, height: 4 }, shadowRadius: 10,
+                                marginBottom: 16,
                             }}
                             accessibilityRole="button"
-                            accessibilityLabel="다음 단계로"
+                            accessibilityLabel="지도에서 보기"
                         >
-                            <Text style={{
-                                fontSize: fs.lg, fontWeight: '700',
-                                color: isEnabled ? '#FAFAFA' : '#A1A1AA',
-                            }}>
-                                다음
+                            <Text style={{ fontSize: fs.xl, fontWeight: '700', color: '#FAFAFA' }}>
+                                지도에서 보기
                             </Text>
                         </TouchableOpacity>
-                    );
-                })()}
-            </View>
+
+                        {/* 다시 선택하기 */}
+                        <TouchableOpacity
+                            onPress={() => setStep('province')}
+                            style={{ alignItems: 'center', paddingVertical: 12 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="처음부터 다시 선택하기"
+                        >
+                            <Text style={{ fontSize: fs.md, color: '#71717A', fontWeight: '500' }}>
+                                처음부터 다시 선택하기
+                            </Text>
+                        </TouchableOpacity>
+                    </>
+                )}
+            </ScrollView>
+
+            {/* 하단 이전/다음 버튼 (result 스텝에서는 자체 버튼 사용하므로 숨김) */}
+            {step !== 'result' && (
+                <View style={{
+                    position: 'absolute', bottom: 0, left: 0, right: 0,
+                    paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 32,
+                    backgroundColor: '#FAFAFA',
+                    borderTopWidth: 1, borderTopColor: '#E4E4E7',
+                    flexDirection: 'row', gap: 12,
+                }}>
+                    {/* 이전 버튼 */}
+                    <TouchableOpacity
+                        onPress={handleBack}
+                        style={{
+                            flex: 1,
+                            backgroundColor: '#fff',
+                            borderRadius: 12, paddingVertical: 16, alignItems: 'center',
+                            borderWidth: 1.5, borderColor: '#D4D4D8',
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="이전 단계로"
+                    >
+                        <Text style={{ fontSize: fs.lg, fontWeight: '700', color: '#3F3F46' }}>이전</Text>
+                    </TouchableOpacity>
+
+                    {/* 다음 버튼 */}
+                    {(() => {
+                        const nextHandler = step === 'province' ? handleNextFromProvince : step === 'city' ? handleNextFromCity : handleNextFromCategory;
+                        const isEnabled = step === 'province' ? !!selectedProvince : step === 'city' ? !!selectedCity : !!selectedCategory;
+                        return (
+                            <TouchableOpacity
+                                onPress={nextHandler}
+                                disabled={!isEnabled}
+                                style={{
+                                    flex: 2,
+                                    backgroundColor: isEnabled ? '#18181B' : '#D4D4D8',
+                                    borderRadius: 12, paddingVertical: 16, alignItems: 'center',
+                                    elevation: isEnabled ? 4 : 0,
+                                    shadowColor: '#000',
+                                    shadowOpacity: 0.15,
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowRadius: 6,
+                                }}
+                                accessibilityRole="button"
+                                accessibilityLabel="다음 단계로"
+                            >
+                                <Text style={{
+                                    fontSize: fs.lg, fontWeight: '700',
+                                    color: isEnabled ? '#FAFAFA' : '#A1A1AA',
+                                }}>
+                                    다음
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })()}
+                </View>
+            )}
         </View>
     );
 });
