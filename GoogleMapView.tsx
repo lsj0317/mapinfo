@@ -30,7 +30,7 @@ interface Props {
     onRegionChangeComplete?: (region: MapRegion) => void;
     onPress?: (coordinate: { latitude: number; longitude: number }) => void;
     onMarkerPress?: (id: string, markerType: string) => void;
-    mapType?: 'standard' | 'cadastral' | 'satellite';
+    mapType?: 'standard' | 'cadastral';
     selectedMarker?: { latitude: number; longitude: number } | null;
     markers?: MapMarkerItem[];
     userLocation?: { latitude: number; longitude: number } | null;
@@ -40,8 +40,6 @@ interface Props {
 
 // latitudeDelta < 0.04 ≈ zoom 14+ (지적도 표시 기준)
 const CADASTRAL_MIN_LAT_DELTA = 0.04;
-// latitudeDelta < 0.1 ≈ zoom 12+ (위성뷰 지적도 표시 기준, 멀리서도 보이게)
-const SATELLITE_CADASTRAL_MIN_LAT_DELTA = 0.1;
 
 const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
     const mapRef = useRef<MapView>(null);
@@ -54,9 +52,8 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
     }));
 
     const showCadastral = props.mapType === 'cadastral' && !!props.vworldApiKey && latDelta < CADASTRAL_MIN_LAT_DELTA;
-    const showSatelliteCadastral = props.mapType === 'satellite' && !!props.vworldApiKey && latDelta < SATELLITE_CADASTRAL_MIN_LAT_DELTA;
 
-    const googleMapType = props.mapType === 'satellite' ? 'satellite' : 'standard';
+    const googleMapType = 'standard';
 
     return (
         <MapView
@@ -72,10 +69,8 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
             onPress={(e) => props.onPress?.(e.nativeEvent.coordinate)}
             onMapReady={() => {
                 props.onLoadProgress?.('sdkLoaded');
-                setTimeout(() => {
-                    props.onLoadProgress?.('mapReady');
-                    props.onReady?.();
-                }, 800);
+                props.onLoadProgress?.('mapReady');
+                props.onReady?.();
             }}
             showsUserLocation={true}
             showsMyLocationButton={false}
@@ -84,33 +79,15 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
             {showCadastral && (
                 <>
                     <WMSTile
-                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bonbun&STYLES=lp_pa_cbnd_bonbun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH={width}&HEIGHT={height}&FORMAT=image/png&TRANSPARENT=true`}
-                        tileSize={256}
+                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bonbun&STYLES=lp_pa_cbnd_bonbun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH=512&HEIGHT=512&FORMAT=image/png&TRANSPARENT=true`}
+                        tileSize={512}
                         opacity={0.75}
                         zIndex={2}
                     />
                     <WMSTile
-                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bubun&STYLES=lp_pa_cbnd_bubun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH={width}&HEIGHT={height}&FORMAT=image/png&TRANSPARENT=true`}
-                        tileSize={256}
+                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bubun&STYLES=lp_pa_cbnd_bubun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH=512&HEIGHT=512&FORMAT=image/png&TRANSPARENT=true`}
+                        tileSize={512}
                         opacity={0.75}
-                        zIndex={3}
-                    />
-                </>
-            )}
-
-            {/* 위성뷰에서 지적도 오버레이 (반투명) - zoom 12+ 에서 표시 */}
-            {showSatelliteCadastral && (
-                <>
-                    <WMSTile
-                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bonbun&STYLES=lp_pa_cbnd_bonbun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH={width}&HEIGHT={height}&FORMAT=image/png&TRANSPARENT=true`}
-                        tileSize={256}
-                        opacity={0.6}
-                        zIndex={2}
-                    />
-                    <WMSTile
-                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bubun&STYLES=lp_pa_cbnd_bubun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH={width}&HEIGHT={height}&FORMAT=image/png&TRANSPARENT=true`}
-                        tileSize={256}
-                        opacity={0.6}
                         zIndex={3}
                     />
                 </>

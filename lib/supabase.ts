@@ -23,6 +23,9 @@ export const supabase = createClient(
 // 부동산 영업상태 값
 export type SalesStatus = '미접촉' | '접촉' | '영업성공' | '영업실패' | '대기중' | '보류';
 
+// 영업 대상 유형
+export type TargetType = 'industrial' | 'residential';
+
 // 부동산 테이블 타입 (Supabase properties 테이블과 1:1 매핑)
 export interface Property {
   property_id: string;       // 부동산 고유번호 (PK)
@@ -42,6 +45,10 @@ export interface Property {
   photo_urls: string[] | null;      // 현장 사진 URL 목록 (Supabase Storage)
   next_contact_date: string | null; // 다음 연락 예정일 (Push 알림용)
   notification_id: string | null;   // 스케줄된 알림 ID
+  target_type: TargetType | null;   // 영업 대상 유형 (공단/민간주택)
+  building_area_sqm: number | null; // 건물 면적(㎡) - 별도 관리용
+  roof_material: string | null;     // 지붕 재질 메모
+  solar_installed: boolean | null;  // 태양광 기설치 여부
   created_at?: string;
   updated_at?: string;
 }
@@ -83,6 +90,10 @@ export const DUMMY_PROPERTIES: Property[] = [
     photo_urls: null,
     next_contact_date: null,
     notification_id: null,
+    target_type: 'residential',
+    building_area_sqm: null,
+    roof_material: null,
+    solar_installed: null,
   },
   {
     property_id: '1348-2024-999002',
@@ -102,6 +113,10 @@ export const DUMMY_PROPERTIES: Property[] = [
     photo_urls: null,
     next_contact_date: null,
     notification_id: null,
+    target_type: 'industrial',
+    building_area_sqm: null,
+    roof_material: null,
+    solar_installed: null,
   },
   {
     property_id: '1348-2024-999003',
@@ -121,5 +136,9 @@ export const DUMMY_PROPERTIES: Property[] = [
     photo_urls: null,
     next_contact_date: null,
     notification_id: null,
+    target_type: 'industrial',
+    building_area_sqm: null,
+    roof_material: null,
+    solar_installed: null,
   },
 ];
