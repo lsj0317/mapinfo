@@ -4575,9 +4575,11 @@ const DEFAULT_PROVINCES: { name: string; short: string; lat: number; lng: number
 
 const CITIES_PER_PAGE = 12;
 
+type PlaceCategoryType = 'building' | 'commercial' | 'industrial';
+
 interface RegionSelectScreenProps {
     onBack: () => void;
-    onComplete: (province: string, city: string, lat: number, lng: number) => void;
+    onComplete: (province: string, city: string, category: PlaceCategoryType, lat: number, lng: number) => void;
 }
 
 const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScreenProps) => {
@@ -4585,10 +4587,11 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
     const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
 
-    type Step = 'province' | 'city';
+    type Step = 'province' | 'city' | 'category' | 'result';
     const [step, setStep] = useState<Step>('province');
     const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
     const [selectedCity, setSelectedCity] = useState<string | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<PlaceCategoryType | null>(null);
     const [cityPage, setCityPage] = useState(0);
 
     // Supabase 데이터 상태
@@ -4695,19 +4698,30 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
 
     const handleNextFromCity = useCallback(() => {
         if (!selectedProvince || !selectedCity) return;
+        setStep('category');
+    }, [selectedProvince, selectedCity]);
+
+    const handleCategorySelect = useCallback((cat: PlaceCategoryType) => {
+        setSelectedCategory(prev => prev === cat ? null : cat);
+    }, []);
+
+    const handleNextFromCategory = useCallback(() => {
+        if (!selectedProvince || !selectedCity || !selectedCategory) return;
         const cityData = cities.find(c => c.name === selectedCity);
         if (cityData) {
-            onComplete(selectedProvince, selectedCity, cityData.lat, cityData.lng);
+            onComplete(selectedProvince, selectedCity, selectedCategory, cityData.lat, cityData.lng);
         }
-    }, [selectedProvince, selectedCity, cities, onComplete]);
+    }, [selectedProvince, selectedCity, selectedCategory, cities, onComplete]);
 
     const handleBack = useCallback(() => {
-        if (step === 'city') {
+        if (step === 'category') {
+            setStep('city');
+        } else if (step === 'city') {
             setStep('province');
-            // 선택값 유지 (초기화하지 않음)
         } else {
             onBack();
         }
+        // 모든 선택값 유지 (초기화하지 않음)
     }, [step, onBack]);
 
     // 페이징 계산
@@ -4733,7 +4747,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
 
             {/* 스텝 인디케이터 (4단계 게이지바) */}
             {(() => {
-                const currentStep = step === 'province' ? 0 : 1; // 현재는 0,1 (추후 2,3 확장)
+                const currentStep = step === 'province' ? 0 : step === 'city' ? 1 : step === 'category' ? 2 : 3;
                 const totalSteps = 4;
                 const stepLabels = ['지역', '시군구', '상세', '결과'];
 
@@ -4803,7 +4817,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
 
             {/* 메인 콘텐츠 */}
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}>
-                {step === 'province' ? (
+                {step === 'province' && (
                     <>
                         {/* Step 1: 지역 선택 */}
                         <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
@@ -4867,7 +4881,9 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                             </View>
                         )}
                     </>
-                ) : (
+                )}
+
+                {step === 'city' && (
                     <>
                         {/* Step 2: 상세 지역 선택 */}
                         <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
@@ -4980,6 +4996,101 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                         )}
                     </>
                 )}
+
+                {step === 'category' && (
+                    <>
+                        {/* Step 3: 장소 유형 선택 */}
+                        <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
+                            어떤 장소를 찾으시나요?
+                        </Text>
+                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginBottom: 8 }}>
+                            조회할 건물 유형을 선택하세요
+                        </Text>
+
+                        {/* 선택된 지역 요약 */}
+                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 24 }}>
+                            <View style={{
+                                backgroundColor: '#18181B', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 5,
+                            }}>
+                                <Text style={{ color: '#FAFAFA', fontSize: fs.xs, fontWeight: '600' }}>{selectedProvinceShort}</Text>
+                            </View>
+                            <View style={{
+                                backgroundColor: '#3F3F46', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 5,
+                            }}>
+                                <Text style={{ color: '#FAFAFA', fontSize: fs.xs, fontWeight: '600' }}>{selectedCity}</Text>
+                            </View>
+                        </View>
+
+                        {/* 카테고리 카드 3개 */}
+                        <View style={{ gap: 12 }}>
+                            {([
+                                { key: 'building' as PlaceCategoryType, icon: '🏠', label: '일반건축물', desc: '주택, 아파트, 다세대 등 일반 건축물' },
+                                { key: 'commercial' as PlaceCategoryType, icon: '🏢', label: '상가', desc: '상가, 오피스텔, 업무용 빌딩 등' },
+                                { key: 'industrial' as PlaceCategoryType, icon: '🏭', label: '공단', desc: '공장, 창고, 물류센터 등 산업시설' },
+                            ]).map(cat => {
+                                const isSelected = selectedCategory === cat.key;
+                                return (
+                                    <TouchableOpacity
+                                        key={cat.key}
+                                        onPress={() => handleCategorySelect(cat.key)}
+                                        style={{
+                                            backgroundColor: isSelected ? '#18181B' : '#fff',
+                                            borderRadius: 16,
+                                            padding: 24,
+                                            borderWidth: 2,
+                                            borderColor: isSelected ? '#18181B' : '#E4E4E7',
+                                            alignItems: 'center',
+                                            elevation: isSelected ? 6 : 2,
+                                            shadowColor: '#000',
+                                            shadowOpacity: isSelected ? 0.2 : 0.06,
+                                            shadowOffset: { width: 0, height: isSelected ? 4 : 1 },
+                                            shadowRadius: isSelected ? 8 : 3,
+                                        }}
+                                        accessibilityRole="radio"
+                                        accessibilityState={{ checked: isSelected }}
+                                        accessibilityLabel={cat.label}
+                                    >
+                                        {/* 아이콘 */}
+                                        <View style={{
+                                            width: 56, height: 56, borderRadius: 16,
+                                            backgroundColor: isSelected ? '#27272A' : '#F4F4F5',
+                                            alignItems: 'center', justifyContent: 'center',
+                                            marginBottom: 12,
+                                        }}>
+                                            <Text style={{ fontSize: 28 }}>{cat.icon}</Text>
+                                        </View>
+                                        {/* 텍스트 */}
+                                        <Text style={{
+                                            fontSize: fs.lg, fontWeight: '700',
+                                            color: isSelected ? '#FAFAFA' : '#18181B',
+                                            marginBottom: 4,
+                                        }}>
+                                            {cat.label}
+                                        </Text>
+                                        <Text style={{
+                                            fontSize: fs.sm,
+                                            color: isSelected ? '#A1A1AA' : '#71717A',
+                                            textAlign: 'center',
+                                        }}>
+                                            {cat.desc}
+                                        </Text>
+                                        {/* 선택 체크 표시 */}
+                                        {isSelected && (
+                                            <View style={{
+                                                position: 'absolute', top: 12, right: 12,
+                                                width: 24, height: 24, borderRadius: 12,
+                                                backgroundColor: '#FAFAFA',
+                                                alignItems: 'center', justifyContent: 'center',
+                                            }}>
+                                                <Text style={{ color: '#18181B', fontSize: 14, fontWeight: '700' }}>{'✓'}</Text>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </>
+                )}
             </ScrollView>
 
             {/* 하단 이전/다음 버튼 */}
@@ -5006,29 +5117,35 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                 </TouchableOpacity>
 
                 {/* 다음 버튼 */}
-                <TouchableOpacity
-                    onPress={step === 'province' ? handleNextFromProvince : handleNextFromCity}
-                    disabled={step === 'province' ? !selectedProvince : !selectedCity}
-                    style={{
-                        flex: 2,
-                        backgroundColor: (step === 'province' ? selectedProvince : selectedCity) ? '#18181B' : '#D4D4D8',
-                        borderRadius: 12, paddingVertical: 16, alignItems: 'center',
-                        elevation: (step === 'province' ? selectedProvince : selectedCity) ? 4 : 0,
-                        shadowColor: '#000',
-                        shadowOpacity: 0.15,
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowRadius: 6,
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel="다음 단계로"
-                >
-                    <Text style={{
-                        fontSize: fs.lg, fontWeight: '700',
-                        color: (step === 'province' ? selectedProvince : selectedCity) ? '#FAFAFA' : '#A1A1AA',
-                    }}>
-                        다음
-                    </Text>
-                </TouchableOpacity>
+                {(() => {
+                    const nextHandler = step === 'province' ? handleNextFromProvince : step === 'city' ? handleNextFromCity : handleNextFromCategory;
+                    const isEnabled = step === 'province' ? !!selectedProvince : step === 'city' ? !!selectedCity : !!selectedCategory;
+                    return (
+                        <TouchableOpacity
+                            onPress={nextHandler}
+                            disabled={!isEnabled}
+                            style={{
+                                flex: 2,
+                                backgroundColor: isEnabled ? '#18181B' : '#D4D4D8',
+                                borderRadius: 12, paddingVertical: 16, alignItems: 'center',
+                                elevation: isEnabled ? 4 : 0,
+                                shadowColor: '#000',
+                                shadowOpacity: 0.15,
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowRadius: 6,
+                            }}
+                            accessibilityRole="button"
+                            accessibilityLabel="다음 단계로"
+                        >
+                            <Text style={{
+                                fontSize: fs.lg, fontWeight: '700',
+                                color: isEnabled ? '#FAFAFA' : '#A1A1AA',
+                            }}>
+                                다음
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })()}
             </View>
         </View>
     );
@@ -6630,7 +6747,7 @@ function AppContent() {
                 return (
                     <RegionSelectScreen
                         onBack={() => setCurrentTab('home')}
-                        onComplete={(province, city, lat, lng) => {
+                        onComplete={(province, city, category, lat, lng) => {
                             const newRegion = { latitude: lat, longitude: lng, latitudeDelta: 0.08, longitudeDelta: 0.08 };
                             setRegion(newRegion);
                             animateActiveMap(newRegion, 600);
