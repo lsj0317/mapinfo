@@ -5024,11 +5024,13 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                         {/* 카테고리 카드 3개 */}
                         <View style={{ gap: 12 }}>
                             {([
-                                { key: 'building' as PlaceCategoryType, icon: '🏠', label: '일반건축물', desc: '주택, 아파트, 다세대 등 일반 건축물' },
-                                { key: 'commercial' as PlaceCategoryType, icon: '🏢', label: '상가', desc: '상가, 오피스텔, 업무용 빌딩 등' },
-                                { key: 'industrial' as PlaceCategoryType, icon: '🏭', label: '공단', desc: '공장, 창고, 물류센터 등 산업시설' },
+                                { key: 'building' as PlaceCategoryType, label: '일반건축물', desc: '주택, 아파트, 다세대 등 일반 건축물' },
+                                { key: 'commercial' as PlaceCategoryType, label: '상가', desc: '상가, 오피스텔, 업무용 빌딩 등' },
+                                { key: 'industrial' as PlaceCategoryType, label: '공단', desc: '공장, 창고, 물류센터 등 산업시설' },
                             ]).map(cat => {
                                 const isSelected = selectedCategory === cat.key;
+                                const iconColor = isSelected ? '#FAFAFA' : '#3F3F46';
+                                const iconBg = isSelected ? '#27272A' : '#F4F4F5';
                                 return (
                                     <TouchableOpacity
                                         key={cat.key}
@@ -5050,14 +5052,74 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                                         accessibilityState={{ checked: isSelected }}
                                         accessibilityLabel={cat.label}
                                     >
-                                        {/* 아이콘 */}
+                                        {/* 단색 아이콘 */}
                                         <View style={{
                                             width: 56, height: 56, borderRadius: 16,
-                                            backgroundColor: isSelected ? '#27272A' : '#F4F4F5',
+                                            backgroundColor: iconBg,
                                             alignItems: 'center', justifyContent: 'center',
                                             marginBottom: 12,
                                         }}>
-                                            <Text style={{ fontSize: 28 }}>{cat.icon}</Text>
+                                            {cat.key === 'building' && (
+                                                /* 집 아이콘: 삼각형 지붕 + 사각형 몸체 */
+                                                <View style={{ alignItems: 'center' }}>
+                                                    <View style={{
+                                                        width: 0, height: 0,
+                                                        borderLeftWidth: 14, borderRightWidth: 14, borderBottomWidth: 12,
+                                                        borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                                        borderBottomColor: iconColor,
+                                                        marginBottom: -1,
+                                                    }} />
+                                                    <View style={{
+                                                        width: 20, height: 14,
+                                                        backgroundColor: iconColor, borderBottomLeftRadius: 2, borderBottomRightRadius: 2,
+                                                    }} />
+                                                </View>
+                                            )}
+                                            {cat.key === 'commercial' && (
+                                                /* 빌딩 아이콘: 세로 직사각형 + 창문 점 */
+                                                <View style={{ alignItems: 'center' }}>
+                                                    <View style={{
+                                                        width: 22, height: 28, backgroundColor: iconColor,
+                                                        borderRadius: 2, justifyContent: 'center', alignItems: 'center', paddingTop: 4,
+                                                    }}>
+                                                        {[0, 1, 2].map(row => (
+                                                            <View key={row} style={{ flexDirection: 'row', gap: 4, marginBottom: 3 }}>
+                                                                <View style={{ width: 4, height: 3, backgroundColor: iconBg, borderRadius: 0.5 }} />
+                                                                <View style={{ width: 4, height: 3, backgroundColor: iconBg, borderRadius: 0.5 }} />
+                                                            </View>
+                                                        ))}
+                                                    </View>
+                                                </View>
+                                            )}
+                                            {cat.key === 'industrial' && (
+                                                /* 공장 아이콘: 톱니 지붕 2개 + 사각형 몸체 + 굴뚝 */
+                                                <View style={{ alignItems: 'center' }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+                                                        {/* 굴뚝 */}
+                                                        <View style={{ width: 4, height: 10, backgroundColor: iconColor, marginRight: 1, borderTopLeftRadius: 1, borderTopRightRadius: 1 }} />
+                                                        {/* 톱니 지붕 1 */}
+                                                        <View style={{
+                                                            width: 0, height: 0,
+                                                            borderLeftWidth: 8, borderRightWidth: 8, borderBottomWidth: 10,
+                                                            borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                                            borderBottomColor: iconColor,
+                                                        }} />
+                                                        {/* 톱니 지붕 2 */}
+                                                        <View style={{
+                                                            width: 0, height: 0,
+                                                            borderLeftWidth: 8, borderRightWidth: 8, borderBottomWidth: 10,
+                                                            borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                                            borderBottomColor: iconColor,
+                                                            marginLeft: -2,
+                                                        }} />
+                                                    </View>
+                                                    {/* 몸체 */}
+                                                    <View style={{
+                                                        width: 28, height: 10, backgroundColor: iconColor,
+                                                        borderBottomLeftRadius: 2, borderBottomRightRadius: 2, marginTop: -1,
+                                                    }} />
+                                                </View>
+                                            )}
                                         </View>
                                         {/* 텍스트 */}
                                         <Text style={{
