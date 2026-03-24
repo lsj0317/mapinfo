@@ -4666,15 +4666,28 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
         }
     }, [provinces]);
 
+    const prevProvinceRef = useRef<string | null>(null);
+
     const handleProvinceSelect = useCallback((name: string) => {
-        setSelectedProvince(prev => prev === name ? null : name);
+        setSelectedProvince(prev => {
+            const next = prev === name ? null : name;
+            // 도가 변경되면 시군구 선택 초기화
+            if (next !== prev) {
+                setSelectedCity(null);
+            }
+            return next;
+        });
     }, []);
 
     const handleNextFromProvince = useCallback(() => {
         if (!selectedProvince) return;
-        loadCities(selectedProvince);
+        // 같은 도면 재로드 안함 (이전 선택 유지)
+        if (prevProvinceRef.current !== selectedProvince || cities.length === 0) {
+            loadCities(selectedProvince);
+            prevProvinceRef.current = selectedProvince;
+        }
         setStep('city');
-    }, [selectedProvince, loadCities]);
+    }, [selectedProvince, cities.length, loadCities]);
 
     const handleCitySelect = useCallback((name: string) => {
         setSelectedCity(prev => prev === name ? null : name);
@@ -4691,8 +4704,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
     const handleBack = useCallback(() => {
         if (step === 'city') {
             setStep('province');
-            setSelectedCity(null);
-            setCities([]);
+            // 선택값 유지 (초기화하지 않음)
         } else {
             onBack();
         }
@@ -4970,17 +4982,35 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                 )}
             </ScrollView>
 
-            {/* 하단 다음/완료 버튼 */}
+            {/* 하단 이전/다음 버튼 */}
             <View style={{
                 position: 'absolute', bottom: 0, left: 0, right: 0,
                 paddingHorizontal: 20, paddingVertical: 16, paddingBottom: 32,
                 backgroundColor: '#FAFAFA',
                 borderTopWidth: 1, borderTopColor: '#E4E4E7',
+                flexDirection: 'row', gap: 12,
             }}>
+                {/* 이전 버튼 */}
+                <TouchableOpacity
+                    onPress={handleBack}
+                    style={{
+                        flex: 1,
+                        backgroundColor: '#fff',
+                        borderRadius: 12, paddingVertical: 16, alignItems: 'center',
+                        borderWidth: 1.5, borderColor: '#D4D4D8',
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="이전 단계로"
+                >
+                    <Text style={{ fontSize: fs.lg, fontWeight: '700', color: '#3F3F46' }}>이전</Text>
+                </TouchableOpacity>
+
+                {/* 다음 버튼 */}
                 <TouchableOpacity
                     onPress={step === 'province' ? handleNextFromProvince : handleNextFromCity}
                     disabled={step === 'province' ? !selectedProvince : !selectedCity}
                     style={{
+                        flex: 2,
                         backgroundColor: (step === 'province' ? selectedProvince : selectedCity) ? '#18181B' : '#D4D4D8',
                         borderRadius: 12, paddingVertical: 16, alignItems: 'center',
                         elevation: (step === 'province' ? selectedProvince : selectedCity) ? 4 : 0,
@@ -4990,13 +5020,13 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                         shadowRadius: 6,
                     }}
                     accessibilityRole="button"
-                    accessibilityLabel={step === 'province' ? '다음 단계로' : '선택 완료'}
+                    accessibilityLabel="다음 단계로"
                 >
                     <Text style={{
                         fontSize: fs.lg, fontWeight: '700',
                         color: (step === 'province' ? selectedProvince : selectedCity) ? '#FAFAFA' : '#A1A1AA',
                     }}>
-                        {step === 'province' ? '다음' : '다음'}
+                        다음
                     </Text>
                 </TouchableOpacity>
             </View>
