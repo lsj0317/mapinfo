@@ -5,7 +5,7 @@ import {
     StyleSheet, Text, View, SafeAreaView, TouchableOpacity,
     Platform, StatusBar, Alert, FlatList, Animated,
     ActivityIndicator, Dimensions, TextInput, Modal, ScrollView,
-    Share, Image, Linking, AppState, AppStateStatus,
+    Share, Image, Linking, AppState, AppStateStatus, Vibration,
 } from 'react-native';
 import GoogleMapView, { GoogleMapHandle, type MapRegion as Region } from './GoogleMapView';
 import KakaoSkyView, { type KakaoSkyViewHandle } from './KakaoSkyView';
@@ -44,6 +44,9 @@ const ELDERLY_MODE_KEY = 'elderly_mode';
 const NOTIFICATIONS_KEY = 'app_notifications';
 const LAST_IMPROVEMENTS_COUNT_KEY = 'last_improvements_count';
 const SELECTED_REGION_KEY = 'selected_region';
+const ONBOARDING_DONE_KEY = 'onboarding_done';
+const FONT_SIZE_LEVEL_KEY = 'font_size_level';
+const SIMPLE_MODE_KEY = 'simple_mode';
 
 interface AppNotification {
     id: string;
@@ -98,29 +101,24 @@ const SOLAR_MIN_AREA_LARGE = 1000;  // 대형 (필터 3단계)
 
 // ===== 고령자 모드 글꼴/사이즈 설정 =====
 
-const FONT_SCALE = {
+type FontSizeLevel = 'normal' | 'large' | 'extraLarge';
+
+const FONT_SCALE_LEVELS: Record<FontSizeLevel, Record<string, number>> = {
     normal: {
-        xs: 14,
-        sm: 15,
-        md: 16,
-        base: 17,
-        lg: 19,
-        xl: 21,
-        '2xl': 23,
-        '3xl': 25,
-        '4xl': 30,
+        xs: 14, sm: 15, md: 16, base: 17, lg: 19, xl: 21, '2xl': 23, '3xl': 25, '4xl': 30,
     },
-    elderly: {
-        xs: 18,
-        sm: 19,
-        md: 21,
-        base: 23,
-        lg: 25,
-        xl: 28,
-        '2xl': 30,
-        '3xl': 33,
-        '4xl': 38,
+    large: {
+        xs: 17, sm: 18, md: 19, base: 21, lg: 23, xl: 25, '2xl': 27, '3xl': 30, '4xl': 35,
     },
+    extraLarge: {
+        xs: 20, sm: 21, md: 23, base: 25, lg: 27, xl: 30, '2xl': 33, '3xl': 36, '4xl': 42,
+    },
+};
+
+// 하위호환: elderlyMode true → extraLarge
+const FONT_SCALE = {
+    normal: FONT_SCALE_LEVELS.normal,
+    elderly: FONT_SCALE_LEVELS.extraLarge,
 };
 
 const TOUCH_SIZE = {
@@ -525,6 +523,12 @@ interface MapStore {
     elderlyMode: boolean;
     setElderlyMode: (mode: boolean) => void;
 
+    fontSizeLevel: FontSizeLevel;
+    setFontSizeLevel: (level: FontSizeLevel) => void;
+
+    simpleMode: boolean;
+    setSimpleMode: (mode: boolean) => void;
+
     salesTargetFilter: SalesTargetFilter;
     setSalesTargetFilter: (filter: SalesTargetFilter) => void;
 
@@ -576,6 +580,19 @@ const useMapStore = create<MapStore>((set, get) => ({
     setElderlyMode: (mode) => {
         set({ elderlyMode: mode });
         AsyncStorage.setItem(ELDERLY_MODE_KEY, JSON.stringify(mode)).catch(console.warn);
+    },
+
+    fontSizeLevel: 'normal' as FontSizeLevel,
+    setFontSizeLevel: (level) => {
+        set({ fontSizeLevel: level, elderlyMode: level === 'extraLarge' });
+        AsyncStorage.setItem(FONT_SIZE_LEVEL_KEY, level).catch(console.warn);
+        AsyncStorage.setItem(ELDERLY_MODE_KEY, JSON.stringify(level === 'extraLarge')).catch(console.warn);
+    },
+
+    simpleMode: false,
+    setSimpleMode: (mode) => {
+        set({ simpleMode: mode });
+        AsyncStorage.setItem(SIMPLE_MODE_KEY, JSON.stringify(mode)).catch(console.warn);
     },
 
     salesTargetFilter: 'all',
@@ -3667,68 +3684,119 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
 // ===== 고령자 모드 설정 화면 =====
 
 const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
-    const { elderlyMode, setElderlyMode } = useMapStore();
-    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const { elderlyMode, fontSizeLevel, setFontSizeLevel, simpleMode, setSimpleMode } = useMapStore();
+    const fs = FONT_SCALE_LEVELS[fontSizeLevel] || FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
+
+    const fontSizeLevels: { key: FontSizeLevel; label: string; desc: string }[] = [
+        { key: 'normal', label: '보통', desc: '기본 크기' },
+        { key: 'large', label: '크게', desc: '글자를 크게' },
+        { key: 'extraLarge', label: '아주 크게', desc: '최대 크기' },
+    ];
 
     return (
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity
-                    onPress={onBack}
+                    onPress={() => { hapticFeedback(); onBack(); }}
                     style={styles.backButton}
                     accessibilityLabel="뒤로 가기"
                     accessibilityRole="button"
                 >
-                    <Text style={[styles.backButtonText, elderlyMode && { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.subScreenTitle, elderlyMode && { fontSize: fs['3xl'] }]}>화면 설정</Text>
+                <Text style={[styles.subScreenTitle, { fontSize: fs['3xl'] }]}>화면 설정</Text>
                 <View style={{ width: 50 }} />
             </View>
             <ScrollView style={{ flex: 1, padding: 20 }}>
-                {/* 고령자 모드 토글 */}
+                {/* 글자 크기 3단계 선택 */}
                 <View style={{
-                    backgroundColor: elderlyMode ? '#E3F2FD' : '#F8F9FA',
+                    backgroundColor: '#F8F9FA',
                     borderRadius: 16,
                     padding: 20,
                     marginBottom: 20,
-                    borderWidth: elderlyMode ? 2 : 1,
-                    borderColor: elderlyMode ? '#1565C0' : '#eee',
+                    borderWidth: 1.5,
+                    borderColor: '#BFBFBF',
                 }}>
-                    <Text style={{
-                        fontSize: fs['2xl'],
-                        fontWeight: '700',
-                        color: '#333',
-                        marginBottom: 8,
-                    }}>
-                        큰 글씨 모드
+                    <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#18181B', marginBottom: 6 }}>
+                        📝 글자 크기
                     </Text>
-                    <Text style={{
-                        fontSize: fs.base,
-                        color: '#666',
-                        lineHeight: fs.base * 1.6,
-                        marginBottom: 16,
-                    }}>
-                        글자 크기를 키우고, 버튼을 크게 만들어{'\n'}
-                        보기 편하게 설정합니다.
+                    <Text style={{ fontSize: fs.base, color: '#525252', lineHeight: fs.base * 1.5, marginBottom: 18 }}>
+                        원하는 글자 크기를 선택하세요
+                    </Text>
+
+                    <View style={{ gap: 12 }}>
+                        {fontSizeLevels.map(level => {
+                            const isSelected = fontSizeLevel === level.key;
+                            const previewFs = FONT_SCALE_LEVELS[level.key];
+                            return (
+                                <TouchableOpacity
+                                    key={level.key}
+                                    style={{
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        padding: 18,
+                                        borderRadius: 14,
+                                        borderWidth: isSelected ? 2.5 : 1.5,
+                                        borderColor: isSelected ? '#1565C0' : '#BFBFBF',
+                                        backgroundColor: isSelected ? '#E3F2FD' : '#fff',
+                                        minHeight: 72,
+                                    }}
+                                    onPress={() => { hapticFeedback(); setFontSizeLevel(level.key); }}
+                                    accessibilityLabel={`글자 크기 ${level.label}`}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: isSelected }}
+                                >
+                                    <View style={{
+                                        width: 28, height: 28, borderRadius: 14,
+                                        borderWidth: 2.5,
+                                        borderColor: isSelected ? '#1565C0' : '#BFBFBF',
+                                        justifyContent: 'center', alignItems: 'center',
+                                        marginRight: 16,
+                                    }}>
+                                        {isSelected && <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#1565C0' }} />}
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: previewFs.lg, fontWeight: '700', color: '#18181B' }}>{level.label}</Text>
+                                        <Text style={{ fontSize: previewFs.sm, color: '#525252', marginTop: 2 }}>{level.desc}</Text>
+                                    </View>
+                                    {isSelected && <Text style={{ fontSize: 22, marginLeft: 8 }}>✅</Text>}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+
+                {/* 간편 모드 토글 */}
+                <View style={{
+                    backgroundColor: simpleMode ? '#E8F5E9' : '#F8F9FA',
+                    borderRadius: 16,
+                    padding: 20,
+                    marginBottom: 20,
+                    borderWidth: simpleMode ? 2 : 1.5,
+                    borderColor: simpleMode ? '#2E7D32' : '#BFBFBF',
+                }}>
+                    <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#18181B', marginBottom: 6 }}>
+                        🔧 간편 모드
+                    </Text>
+                    <Text style={{ fontSize: fs.base, color: '#525252', lineHeight: fs.base * 1.5, marginBottom: 16 }}>
+                        복잡한 기능을 숨기고{'\n'}핵심 기능만 표시합니다.
                     </Text>
                     <TouchableOpacity
                         style={{
-                            backgroundColor: elderlyMode ? '#C62828' : '#1565C0',
+                            backgroundColor: simpleMode ? '#C62828' : '#2E7D32',
                             borderRadius: 12,
-                            paddingVertical: ts.minHeight > 40 ? 18 : 14,
+                            paddingVertical: 18,
                             alignItems: 'center',
+                            minHeight: 60,
+                            justifyContent: 'center',
                         }}
-                        onPress={() => setElderlyMode(!elderlyMode)}
-                        accessibilityLabel={elderlyMode ? '큰 글씨 모드 끄기' : '큰 글씨 모드 켜기'}
+                        onPress={() => { hapticFeedback(); setSimpleMode(!simpleMode); }}
+                        accessibilityLabel={simpleMode ? '간편 모드 끄기' : '간편 모드 켜기'}
                         accessibilityRole="button"
                     >
-                        <Text style={{
-                            color: '#fff',
-                            fontSize: fs.xl,
-                            fontWeight: '700',
-                        }}>
-                            {elderlyMode ? '큰 글씨 모드 끄기' : '큰 글씨 모드 켜기'}
+                        <Text style={{ color: '#fff', fontSize: fs.xl, fontWeight: '700' }}>
+                            {simpleMode ? '간편 모드 끄기' : '간편 모드 켜기'}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -3739,65 +3807,49 @@ const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
                     borderRadius: 16,
                     padding: 20,
                     marginBottom: 20,
-                    borderWidth: 1,
-                    borderColor: '#eee',
+                    borderWidth: 1.5,
+                    borderColor: '#BFBFBF',
                 }}>
-                    <Text style={{
-                        fontSize: fs['2xl'],
-                        fontWeight: '700',
-                        color: '#333',
-                        marginBottom: 12,
-                    }}>
-                        미리보기
+                    <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#18181B', marginBottom: 14 }}>
+                        👁️ 미리보기
                     </Text>
 
-                    {/* 예시 버튼 */}
                     <TouchableOpacity
                         style={{
-                            backgroundColor: '#4A90E2',
-                            borderRadius: 12,
-                            paddingVertical: ts.padding,
-                            minHeight: ts.minHeight,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginBottom: 12,
+                            backgroundColor: '#4A90E2', borderRadius: 12,
+                            paddingVertical: ts.padding, minHeight: ts.minHeight,
+                            alignItems: 'center', justifyContent: 'center', marginBottom: 14,
                         }}
                     >
-                        <Text style={{ color: '#fff', fontSize: fs.lg, fontWeight: '700' }}>
-                            버튼 예시
-                        </Text>
+                        <Text style={{ color: '#fff', fontSize: fs.lg, fontWeight: '700' }}>버튼 예시</Text>
                     </TouchableOpacity>
 
-                    {/* 예시 텍스트들 */}
-                    <Text style={{ fontSize: fs.lg, color: '#333', fontWeight: '700', marginBottom: 4 }}>
+                    <Text style={{ fontSize: fs.lg, color: '#18181B', fontWeight: '700', marginBottom: 6 }}>
                         건물 이름 (제목)
                     </Text>
-                    <Text style={{ fontSize: fs.base, color: '#555', marginBottom: 4 }}>
+                    <Text style={{ fontSize: fs.base, color: '#525252', marginBottom: 4 }}>
                         서울특별시 강남구 역삼동 123-4
                     </Text>
-                    <Text style={{ fontSize: fs.sm, color: '#888' }}>
+                    <Text style={{ fontSize: fs.sm, color: '#737373' }}>
                         거리: 350m | 공장
                     </Text>
                 </View>
 
-                {/* 현재 모드 안내 */}
-                <View style={{
-                    backgroundColor: elderlyMode ? '#FFF8E1' : '#F5F5F5',
-                    borderRadius: 12,
-                    padding: 16,
-                    marginBottom: 30,
-                }}>
-                    <Text style={{
-                        fontSize: fs.md,
-                        color: elderlyMode ? '#E65100' : '#888',
-                        textAlign: 'center',
-                        lineHeight: fs.md * 1.6,
-                    }}>
-                        {elderlyMode
-                            ? '현재 큰 글씨 모드가 켜져 있습니다.\n글자와 버튼이 크게 표시됩니다.'
-                            : '현재 기본 모드입니다.\n글자가 작게 느껴지면 큰 글씨 모드를 켜주세요.'}
-                    </Text>
-                </View>
+                {/* 온보딩 다시 보기 */}
+                <TouchableOpacity
+                    style={{
+                        backgroundColor: '#F4F4F5', borderRadius: 12, padding: 18,
+                        alignItems: 'center', borderWidth: 1.5, borderColor: '#BFBFBF',
+                        marginBottom: 30, minHeight: 56, justifyContent: 'center',
+                    }}
+                    onPress={() => {
+                        hapticFeedback();
+                        AsyncStorage.removeItem(ONBOARDING_DONE_KEY).catch(() => {});
+                        Alert.alert('안내', '앱을 다시 시작하면 사용법 안내가 표시됩니다.');
+                    }}
+                >
+                    <Text style={{ fontSize: fs.lg, color: '#333', fontWeight: '600' }}>📖 사용법 안내 다시 보기</Text>
+                </TouchableOpacity>
             </ScrollView>
         </View>
     );
@@ -6011,8 +6063,8 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
     onMoveToMapWithLocation: (lat: number, lng: number, address: string) => void;
     onOpenProperty: (propertyId: string) => void;
 }) => {
-    const { elderlyMode, tilkoBalance, setTilkoBalance } = useMapStore();
-    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const { elderlyMode, tilkoBalance, setTilkoBalance, fontSizeLevel, simpleMode } = useMapStore();
+    const fs = FONT_SCALE_LEVELS[fontSizeLevel] || FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
     type MoreView = 'menu' | 'recent' | 'favorites' | 'registry' | 'settings' | 'improvements' | 'stats' | 'notifications' | 'reminders' | 'activity' | 'buildings' | 'places';
     const [currentView, setCurrentView] = useState<MoreView>('menu');
@@ -6056,8 +6108,8 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
                 onShowBuildings={() => setCurrentView('buildings')}
             />
             <View style={{ height: 1, backgroundColor: '#E4E4E7', marginVertical: 4 }} />
-            {/* 틸코 잔액 카드 (기존 유지) */}
-            <View style={{
+            {/* 틸코 잔액 카드 - 간편 모드에서 숨김 */}
+            {!simpleMode && <View style={{
             {/* 등기 잔액 카드 */}
             <View style={{
                 backgroundColor: tilkoBalance !== null && tilkoBalance < 5 ? '#FEF2F2' : '#F4F4F5',
@@ -6096,56 +6148,63 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
                         : <Text style={{ fontSize: fs.sm, color: '#fff', fontWeight: '600' }}>새로고침</Text>
                     }
                 </TouchableOpacity>
-            </View>
+            </View>}
 
+            {/* 간편 모드: 핵심 메뉴만 표시 */}
             <TouchableOpacity
                 style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
-                onPress={() => setCurrentView('stats')}
-                accessibilityLabel="영업 통계 화면으로 이동"
-                accessibilityRole="button"
-            >
-                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>영업 통계</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
-                onPress={() => setCurrentView('recent')}
+                onPress={() => { hapticFeedback(); setCurrentView('recent'); }}
                 accessibilityLabel="최근 본 장소 화면으로 이동"
                 accessibilityRole="button"
             >
-                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>최근 본 장소</Text>
+                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>📍 최근 본 장소</Text>
             </TouchableOpacity>
             <TouchableOpacity
                 style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
-                onPress={() => setCurrentView('favorites')}
+                onPress={() => { hapticFeedback(); setCurrentView('favorites'); }}
                 accessibilityLabel="즐겨 찾는 장소 화면으로 이동"
                 accessibilityRole="button"
             >
-                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>즐겨 찾는 장소</Text>
+                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>⭐ 즐겨 찾는 장소</Text>
             </TouchableOpacity>
+
+            {!simpleMode && (
+                <>
+                    <TouchableOpacity
+                        style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
+                        onPress={() => { hapticFeedback(); setCurrentView('stats'); }}
+                        accessibilityLabel="영업 통계 화면으로 이동"
+                        accessibilityRole="button"
+                    >
+                        <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>📊 영업 통계</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
+                        onPress={() => { hapticFeedback(); setCurrentView('registry'); }}
+                        accessibilityLabel="등기 열람 이력 화면으로 이동"
+                        accessibilityRole="button"
+                    >
+                        <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>📑 등기 열람 이력</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
+                        onPress={() => { hapticFeedback(); setCurrentView('improvements'); }}
+                        accessibilityLabel="개선사항 및 공지 화면으로 이동"
+                        accessibilityRole="button"
+                    >
+                        <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>📢 개선사항 / 공지</Text>
+                    </TouchableOpacity>
+                </>
+            )}
+
             <TouchableOpacity
                 style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
-                onPress={() => setCurrentView('registry')}
-                accessibilityLabel="등기 열람 이력 화면으로 이동"
-                accessibilityRole="button"
-            >
-                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>등기 열람 이력</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
-                onPress={() => setCurrentView('improvements')}
-                accessibilityLabel="개선사항 및 공지 화면으로 이동"
-                accessibilityRole="button"
-            >
-                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>개선사항 / 공지</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
-                onPress={() => setCurrentView('settings')}
-                accessibilityLabel="화면 설정. 큰 글씨 모드를 켜거나 끌 수 있습니다"
+                onPress={() => { hapticFeedback(); setCurrentView('settings'); }}
+                accessibilityLabel="화면 설정"
                 accessibilityRole="button"
             >
                 <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>
-                    화면 설정 {elderlyMode ? '(큰 글씨 켜짐)' : ''}
+                    ⚙️ 화면 설정 {simpleMode ? '(간편 모드)' : fontSizeLevel !== 'normal' ? `(글자: ${fontSizeLevel === 'large' ? '크게' : '아주 크게'})` : ''}
                 </Text>
             </TouchableOpacity>
         </ScrollView>
@@ -6588,12 +6647,99 @@ const RegionSelectorModal = React.memo(({ visible, onClose, onSelect, currentLab
 
 // ===== 메인 앱 =====
 
+// ===== 햅틱 피드백 유틸 =====
+const hapticFeedback = (duration = 10) => {
+    try { Vibration.vibrate(duration); } catch (_) {}
+};
+
+// ===== 온보딩 컴포넌트 =====
+const OnboardingScreen = ({ onComplete }: { onComplete: () => void }) => {
+    const [step, setStep] = useState(0);
+    const steps = [
+        {
+            emoji: '🗺️',
+            title: '지도에서 건물을 터치하세요',
+            desc: '지도 위의 건물 마커를 터치하면\n해당 건물의 정보가 아래에 표시됩니다.',
+        },
+        {
+            emoji: '📋',
+            title: '건물 정보를 확인하세요',
+            desc: '주소, 등기부등본 조회, 장소관리 등\n다양한 기능을 사용할 수 있습니다.',
+        },
+        {
+            emoji: '⚙️',
+            title: '글자 크기를 조절할 수 있어요',
+            desc: '더보기 > 화면 설정에서\n글자 크기를 크게 변경할 수 있습니다.',
+        },
+    ];
+
+    return (
+        <View style={{ flex: 1, backgroundColor: '#09090B', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+            <Text style={{ fontSize: 80, marginBottom: 32 }}>{steps[step].emoji}</Text>
+            <Text style={{ fontSize: 26, fontWeight: '800', color: '#FAFAFA', textAlign: 'center', marginBottom: 16, lineHeight: 36 }}>
+                {steps[step].title}
+            </Text>
+            <Text style={{ fontSize: 18, color: '#A1A1AA', textAlign: 'center', lineHeight: 28, marginBottom: 48 }}>
+                {steps[step].desc}
+            </Text>
+
+            {/* 진행 표시 */}
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 40 }}>
+                {steps.map((_, i) => (
+                    <View key={i} style={{ width: i === step ? 32 : 10, height: 10, borderRadius: 5, backgroundColor: i === step ? '#4A90E2' : '#3F3F46' }} />
+                ))}
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+                {step > 0 && (
+                    <TouchableOpacity
+                        style={{ flex: 1, paddingVertical: 18, backgroundColor: '#27272A', borderRadius: 14, alignItems: 'center', minHeight: 60 }}
+                        onPress={() => { hapticFeedback(); setStep(step - 1); }}
+                    >
+                        <Text style={{ color: '#FAFAFA', fontSize: 19, fontWeight: '700' }}>← 이전</Text>
+                    </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                    style={{ flex: 2, paddingVertical: 18, backgroundColor: '#4A90E2', borderRadius: 14, alignItems: 'center', minHeight: 60 }}
+                    onPress={() => {
+                        hapticFeedback();
+                        if (step < steps.length - 1) {
+                            setStep(step + 1);
+                        } else {
+                            AsyncStorage.setItem(ONBOARDING_DONE_KEY, 'true').catch(() => {});
+                            onComplete();
+                        }
+                    }}
+                >
+                    <Text style={{ color: '#fff', fontSize: 19, fontWeight: '700' }}>
+                        {step < steps.length - 1 ? '다음 →' : '시작하기'}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
+            {step === 0 && (
+                <TouchableOpacity
+                    style={{ marginTop: 20, padding: 12 }}
+                    onPress={() => {
+                        AsyncStorage.setItem(ONBOARDING_DONE_KEY, 'true').catch(() => {});
+                        onComplete();
+                    }}
+                >
+                    <Text style={{ color: '#737373', fontSize: 16 }}>건너뛰기</Text>
+                </TouchableOpacity>
+            )}
+        </View>
+    );
+};
+
 function AppContent() {
     const [currentTab, setCurrentTab] = useState('map');
     const [placeManagementVisible, setPlaceManagementVisible] = useState(false);
+    const [showOnboarding, setShowOnboarding] = useState(false);
     const mapRef = useRef<GoogleMapHandle>(null);
     const kakaoSkyRef = useRef<KakaoSkyViewHandle>(null);
     const { region, setRegion, selectedMarker, setSelectedMarker, mapType, setMapType, propertyMarkers, setPropertyMarkers, saveRecentPlace, buildingFilter, clusteringEnabled, setClusteringEnabled, elderlyMode, setElderlyMode, salesTargetFilter, setSalesTargetFilter, tilkoBalance, setTilkoBalance } = useMapStore();
+    const { fontSizeLevel, setFontSizeLevel, simpleMode, setSimpleMode } = useMapStore();
 
     // 현재 활성화된 지도 ref로 이동 명령 전달 (mapType 구독 이후 선언)
     const animateActiveMap = useCallback((region: Region, duration?: number) => {
@@ -6603,14 +6749,32 @@ function AppContent() {
             mapRef.current?.animateToRegion(region, duration);
         }
     }, [mapType]);
-    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const fs = FONT_SCALE_LEVELS[fontSizeLevel] || FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
 
-    // 앱 시작 시 고령자 모드 복원 + 알림 핸들러 설정 + 스케줄 복원
+    // 앱 시작 시 설정 복원 + 온보딩 체크
     useEffect(() => {
+        // 온보딩 체크
+        AsyncStorage.getItem(ONBOARDING_DONE_KEY).then(val => {
+            if (val !== 'true') setShowOnboarding(true);
+        }).catch(() => {});
+
+        // 고령자 모드 복원
         AsyncStorage.getItem(ELDERLY_MODE_KEY).then(val => {
             if (val !== null) setElderlyMode(JSON.parse(val));
         }).catch(console.warn);
+
+        // 글자 크기 레벨 복원
+        AsyncStorage.getItem(FONT_SIZE_LEVEL_KEY).then(val => {
+            if (val && (val === 'normal' || val === 'large' || val === 'extraLarge')) {
+                setFontSizeLevel(val as FontSizeLevel);
+            }
+        }).catch(() => {});
+
+        // 간편 모드 복원
+        AsyncStorage.getItem(SIMPLE_MODE_KEY).then(val => {
+            if (val !== null) setSimpleMode(JSON.parse(val));
+        }).catch(() => {});
 
         // 알림 표시 핸들러 (포그라운드)
         if (Notifications) {
@@ -6975,6 +7139,7 @@ function AppContent() {
     }, [selectedMarker]);
 
     const handleGpsPress = useCallback(async () => {
+        hapticFeedback();
         // 이미 heading 모드면 → 끄기
         if (headingMode) {
             setHeadingMode(false);
@@ -7311,19 +7476,21 @@ function AppContent() {
                             >
                                 <Text style={[styles.tabButtonText, { fontSize: fs.md }, mapType === 'cadastral' && styles.activeTabButtonText]}>지적도</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[
-                                    styles.tabButton,
-                                    elderlyMode && { paddingVertical: 12, paddingHorizontal: 14 },
-                                    mapType === 'satellite' && styles.activeTabButton,
-                                ]}
-                                onPress={() => changeMapType('satellite')}
-                                accessibilityLabel="항공뷰로 전환"
-                                accessibilityRole="button"
-                                accessibilityState={{ selected: mapType === 'satellite' }}
-                            >
-                                <Text style={[styles.tabButtonText, { fontSize: fs.md }, mapType === 'satellite' && styles.activeTabButtonText]}>항공뷰</Text>
-                            </TouchableOpacity>
+                            {!simpleMode && (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.tabButton,
+                                        elderlyMode && { paddingVertical: 12, paddingHorizontal: 14 },
+                                        mapType === 'satellite' && styles.activeTabButton,
+                                    ]}
+                                    onPress={() => changeMapType('satellite')}
+                                    accessibilityLabel="항공뷰로 전환"
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: mapType === 'satellite' }}
+                                >
+                                    <Text style={[styles.tabButtonText, { fontSize: fs.md }, mapType === 'satellite' && styles.activeTabButtonText]}>항공뷰</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
 
 
@@ -7445,6 +7612,7 @@ function AppContent() {
                             <TouchableOpacity
                                 style={styles.zoomButton}
                                 onPress={() => {
+                                    hapticFeedback(5);
                                     const newDelta = Math.max(region.latitudeDelta * 0.5, 0.0005);
                                     const newRegion = { ...region, latitudeDelta: newDelta, longitudeDelta: newDelta * (region.longitudeDelta / region.latitudeDelta) };
                                     setRegion(newRegion);
@@ -7459,6 +7627,7 @@ function AppContent() {
                             <TouchableOpacity
                                 style={styles.zoomButton}
                                 onPress={() => {
+                                    hapticFeedback(5);
                                     const newDelta = Math.min(region.latitudeDelta * 2, 5);
                                     const newRegion = { ...region, latitudeDelta: newDelta, longitudeDelta: newDelta * (region.longitudeDelta / region.latitudeDelta) };
                                     setRegion(newRegion);
@@ -7639,6 +7808,18 @@ function AppContent() {
         }
     };
 
+    // 온보딩 화면
+    if (showOnboarding) {
+        return (
+            <>
+                <StatusBar barStyle="light-content" backgroundColor="#09090B" translucent={false} />
+                <SafeAreaView style={{ flex: 1, backgroundColor: '#09090B' }}>
+                    <OnboardingScreen onComplete={() => setShowOnboarding(false)} />
+                </SafeAreaView>
+            </>
+        );
+    }
+
     return (
     <>
         <StatusBar barStyle="light-content" backgroundColor="#09090B" translucent={false} />
@@ -7660,7 +7841,7 @@ function AppContent() {
                         <TouchableOpacity
                             key={tab.id}
                             style={styles.menuItem}
-                            onPress={() => { setCurrentTab(tab.id === 'home' && currentTab === 'homeSearch' ? 'home' : tab.id); }}
+                            onPress={() => { hapticFeedback(5); setCurrentTab(tab.id === 'home' && currentTab === 'homeSearch' ? 'home' : tab.id); }}
                             accessibilityLabel={tab.a11y}
                             accessibilityRole="tab"
                             accessibilityState={{ selected: active }}
