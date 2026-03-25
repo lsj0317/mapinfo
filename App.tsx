@@ -4794,241 +4794,233 @@ const HomeScreen = ({ onSelectRegion, onSelectSearch, onSelectMap }: HomeScreenP
     );
 };
 
-// ===== MapSelectScreen (인터랙티브 대한민국 지도 선택) =====
-
-// 도/광역시별 대략적 위치 비율 (한반도 기준 상대 좌표 %)
-const PROVINCE_POSITIONS: Record<string, { top: number; left: number }> = {
-    '서울특별시': { top: 18, left: 38 },
-    '경기도': { top: 22, left: 32 },
-    '인천광역시': { top: 22, left: 22 },
-    '강원특별자치도': { top: 16, left: 60 },
-    '충청북도': { top: 36, left: 48 },
-    '충청남도': { top: 38, left: 26 },
-    '대전광역시': { top: 42, left: 38 },
-    '세종특별자치시': { top: 36, left: 34 },
-    '전북특별자치도': { top: 52, left: 30 },
-    '전라남도': { top: 66, left: 26 },
-    '광주광역시': { top: 62, left: 24 },
-    '경상북도': { top: 34, left: 68 },
-    '대구광역시': { top: 44, left: 66 },
-    '경상남도': { top: 56, left: 60 },
-    '울산광역시': { top: 48, left: 78 },
-    '부산광역시': { top: 58, left: 74 },
-    '제주특별자치도': { top: 88, left: 30 },
-};
+// ===== MapSelectScreen (실제 지도 기반 드릴다운 선택) =====
 
 interface MapSelectScreenProps {
     onBack: () => void;
     onSelect: (lat: number, lng: number, label: string) => void;
 }
 
+// 대한민국 전체 보기 줌 레벨
+const KOREA_REGION: Region = { latitude: 35.95, longitude: 127.5, latitudeDelta: 5.5, longitudeDelta: 5.5 };
+
 const MapSelectScreen = React.memo(({ onBack, onSelect }: MapSelectScreenProps) => {
-    const { elderlyMode } = useMapStore();
+    const { elderlyMode, mapType } = useMapStore();
     const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+    const localMapRef = useRef<GoogleMapHandle>(null);
 
-    const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
-    const [cities, setCities] = useState<{ name: string; lat: number; lng: number }[]>([]);
-    const [loadingCities, setLoadingCities] = useState(false);
-    const [provinces] = useState(DEFAULT_PROVINCES);
+    type DrillStep = 'province' | 'city' | 'town';
+    const [step, setStep] = useState<DrillStep>('province');
+    const [selectedProvince, setSelectedProvince] = useState<ProvinceData | null>(null);
+    const [selectedCity, setSelectedCity] = useState<CityData | null>(null);
+    const [mapRegion, setMapRegion] = useState<Region>(KOREA_REGION);
 
-    const loadCities = useCallback(async (provinceName: string) => {
-        setLoadingCities(true);
-        setCities([]);
-        try {
-            const provinceMatch = DEFAULT_PROVINCES.find(p => p.name === provinceName);
-            // Supabase 조회
-            if (provinceMatch) {
-                const { data: provData } = await supabase
-                    .from('provinces')
-                    .select('id')
-                    .eq('name', provinceName)
-                    .single();
-                if (provData?.id) {
-                    const { data, error } = await supabase
-                        .from('cities')
-                        .select('name, latitude, longitude, sort_order')
-                        .eq('province_id', provData.id)
-                        .order('sort_order', { ascending: true });
-                    if (data && data.length > 0 && !error) {
-                        setCities(data.map((c: any) => ({ name: c.name, lat: c.latitude, lng: c.longitude })));
-                        setLoadingCities(false);
-                        return;
-                    }
-                }
-            }
-            // 폴백: regions.ts
-            const shortName = provinceMatch?.short;
-            const regionMatch = REGIONS.find(r => r.name === provinceName || r.short === shortName);
-            if (regionMatch) {
-                setCities(regionMatch.cities.map(c => ({ name: c.name, lat: c.latitude, lng: c.longitude })));
-            }
-        } catch {
-            const shortName = DEFAULT_PROVINCES.find(p => p.name === provinceName)?.short;
-            const regionMatch = REGIONS.find(r => r.name === provinceName || r.short === shortName);
-            if (regionMatch) {
-                setCities(regionMatch.cities.map(c => ({ name: c.name, lat: c.latitude, lng: c.longitude })));
-            }
-        } finally {
-            setLoadingCities(false);
-        }
+    // 지도 애니메이션
+    const animateTo = useCallback((region: Region, duration = 600) => {
+        setMapRegion(region);
+        localMapRef.current?.animateToRegion(region, duration);
     }, []);
 
-    const handleProvincePress = (province: typeof DEFAULT_PROVINCES[0]) => {
+    // 1단계: 도/광역시 선택
+    const handleProvincePress = (province: ProvinceData) => {
         hapticFeedback();
-        // 세종은 시군구가 없으므로 바로 이동
-        if (province.name === '세종특별자치시') {
-            onSelect(province.lat, province.lng, province.short);
+        setSelectedProvince(province);
+        setSelectedCity(null);
+        if (province.cities.length === 0) {
+            // 세종 등 하위 없으면 바로 완료
+            onSelect(province.latitude, province.longitude, province.short);
             return;
         }
-        setSelectedProvince(province.name);
-        loadCities(province.name);
+        setStep('city');
+        animateTo({
+            latitude: province.latitude,
+            longitude: province.longitude,
+            ...ZOOM_LEVEL.province,
+        });
     };
 
-    const handleCityPress = (city: { name: string; lat: number; lng: number }) => {
+    // 2단계: 시/군/구 선택
+    const handleCityPress = (city: CityData) => {
         hapticFeedback();
-        const shortName = DEFAULT_PROVINCES.find(p => p.name === selectedProvince)?.short || '';
-        onSelect(city.lat, city.lng, `${shortName} ${city.name}`);
+        setSelectedCity(city);
+        if (city.towns.length === 0) {
+            // 읍면동이 없으면 바로 완료
+            const label = `${selectedProvince?.short} ${city.name}`;
+            onSelect(city.latitude, city.longitude, label);
+            return;
+        }
+        setStep('town');
+        animateTo({
+            latitude: city.latitude,
+            longitude: city.longitude,
+            ...ZOOM_LEVEL.city,
+        });
     };
 
-    const handleBackToProvinces = () => {
+    // 3단계: 읍면동/구 선택 → 최종 이동
+    const handleTownPress = (town: TownData) => {
         hapticFeedback();
-        setSelectedProvince(null);
-        setCities([]);
+        const label = `${selectedProvince?.short} ${selectedCity?.name} ${town.name}`;
+        onSelect(town.latitude, town.longitude, label);
     };
 
-    // 도/광역시 선택 (대한민국 지도 뷰)
-    if (!selectedProvince) {
-        return (
-            <View style={styles.subScreenContainer}>
-                <View style={styles.subScreenHeader}>
-                    <TouchableOpacity onPress={() => { hapticFeedback(); onBack(); }} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
-                        <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
-                    </TouchableOpacity>
-                    <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>지역 선택</Text>
-                    <View style={{ width: 50 }} />
-                </View>
+    // 뒤로가기 (단계별)
+    const handleStepBack = () => {
+        hapticFeedback();
+        if (step === 'town' && selectedProvince) {
+            setStep('city');
+            setSelectedCity(null);
+            animateTo({
+                latitude: selectedProvince.latitude,
+                longitude: selectedProvince.longitude,
+                ...ZOOM_LEVEL.province,
+            });
+        } else if (step === 'city') {
+            setStep('province');
+            setSelectedProvince(null);
+            setSelectedCity(null);
+            animateTo(KOREA_REGION);
+        } else {
+            onBack();
+        }
+    };
 
-                <Text style={{ fontSize: fs.base, color: '#525252', textAlign: 'center', marginTop: 8, marginBottom: 4 }}>
-                    원하는 지역을 터치하세요
-                </Text>
+    // 현재 단계의 목록 데이터
+    const listItems: { key: string; label: string; onPress: () => void }[] = (() => {
+        if (step === 'province') {
+            return REGIONS.map(p => ({
+                key: p.name,
+                label: p.short,
+                onPress: () => handleProvincePress(p),
+            }));
+        }
+        if (step === 'city' && selectedProvince) {
+            return selectedProvince.cities.map(c => ({
+                key: c.name,
+                label: c.name,
+                onPress: () => handleCityPress(c),
+            }));
+        }
+        if (step === 'town' && selectedCity) {
+            return selectedCity.towns.map(t => ({
+                key: t.name,
+                label: t.name,
+                onPress: () => handleTownPress(t),
+            }));
+        }
+        return [];
+    })();
 
-                {/* 대한민국 지도 형태 배치 */}
-                <View style={{ flex: 1, position: 'relative', marginHorizontal: 8 }}>
-                    {provinces.map(p => {
-                        const pos = PROVINCE_POSITIONS[p.name];
-                        if (!pos) return null;
-                        const isMetro = p.name.includes('광역시') || p.name.includes('특별시') || p.name.includes('특별자치시');
-                        return (
-                            <TouchableOpacity
-                                key={p.name}
-                                onPress={() => handleProvincePress(p)}
-                                style={{
-                                    position: 'absolute',
-                                    top: `${pos.top}%`,
-                                    left: `${pos.left}%`,
-                                    transform: [{ translateX: -30 }, { translateY: -20 }],
-                                    backgroundColor: isMetro ? '#1565C0' : '#2E7D32',
-                                    borderRadius: 12,
-                                    paddingHorizontal: elderlyMode ? 14 : 10,
-                                    paddingVertical: elderlyMode ? 10 : 7,
-                                    minWidth: elderlyMode ? 64 : 52,
-                                    alignItems: 'center',
-                                    elevation: 4,
-                                    shadowColor: '#000',
-                                    shadowOpacity: 0.15,
-                                    shadowOffset: { width: 0, height: 2 },
-                                    shadowRadius: 4,
-                                    zIndex: isMetro ? 10 : 5,
-                                }}
-                                accessibilityLabel={`${p.short} 선택`}
-                                accessibilityRole="button"
-                            >
-                                <Text style={{
-                                    color: '#fff',
-                                    fontSize: elderlyMode ? fs.lg : fs.base,
-                                    fontWeight: '700',
-                                    textAlign: 'center',
-                                }}>
-                                    {p.short}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
+    // 헤더 타이틀
+    const headerTitle = step === 'province' ? '지역 선택'
+        : step === 'city' ? `${selectedProvince?.short} 시/군/구`
+        : `${selectedProvince?.short} ${selectedCity?.name}`;
 
-                {/* 범례 */}
-                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, paddingBottom: 16, paddingTop: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <View style={{ width: 14, height: 14, borderRadius: 4, backgroundColor: '#1565C0' }} />
-                        <Text style={{ fontSize: fs.sm, color: '#525252' }}>광역시/특별시</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <View style={{ width: 14, height: 14, borderRadius: 4, backgroundColor: '#2E7D32' }} />
-                        <Text style={{ fontSize: fs.sm, color: '#525252' }}>도</Text>
-                    </View>
-                </View>
-            </View>
-        );
-    }
+    // 단계 안내 텍스트
+    const guideText = step === 'province' ? '지도에서 지역을 선택하세요'
+        : step === 'city' ? '시/군/구를 선택하세요'
+        : '구/읍/면/동을 선택하면 이동합니다';
 
-    // 시/군/구 선택
-    const selectedShort = DEFAULT_PROVINCES.find(p => p.name === selectedProvince)?.short || '';
     return (
-        <View style={styles.subScreenContainer}>
+        <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+            {/* 헤더 */}
             <View style={styles.subScreenHeader}>
-                <TouchableOpacity onPress={handleBackToProvinces} style={styles.backButton} accessibilityLabel="지역 선택으로 돌아가기" accessibilityRole="button">
+                <TouchableOpacity onPress={handleStepBack} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
                     <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>{selectedShort} 시/군/구</Text>
+                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>{headerTitle}</Text>
                 <View style={{ width: 50 }} />
             </View>
 
-            {loadingCities ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color="#1565C0" />
-                    <Text style={{ marginTop: 12, fontSize: fs.base, color: '#525252' }}>시/군/구를 불러오는 중...</Text>
+            {/* 단계 표시 */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 6, gap: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: '#1565C0', justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>1</Text>
+                    </View>
+                    <Text style={{ fontSize: fs.sm, color: step === 'province' ? '#1565C0' : '#525252', fontWeight: step === 'province' ? '700' : '400' }}>시/도</Text>
                 </View>
-            ) : cities.length === 0 ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                    <Text style={{ fontSize: fs.lg, color: '#525252', textAlign: 'center' }}>시/군/구 정보가 없습니다.</Text>
+                <Text style={{ color: '#BFBFBF' }}>›</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: step !== 'province' ? '#1565C0' : '#E0E0E0', justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>2</Text>
+                    </View>
+                    <Text style={{ fontSize: fs.sm, color: step === 'city' ? '#1565C0' : '#525252', fontWeight: step === 'city' ? '700' : '400' }}>시/군/구</Text>
                 </View>
-            ) : (
-                <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 100 }}>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                        {cities.map(city => (
-                            <TouchableOpacity
-                                key={city.name}
-                                onPress={() => handleCityPress(city)}
-                                style={{
-                                    backgroundColor: '#fff',
-                                    borderRadius: 12,
-                                    borderWidth: 1.5,
-                                    borderColor: '#E4E4E7',
-                                    paddingHorizontal: elderlyMode ? 18 : 14,
-                                    paddingVertical: elderlyMode ? 16 : 12,
-                                    minWidth: elderlyMode ? 100 : 80,
-                                    alignItems: 'center',
-                                    elevation: 2,
-                                    shadowColor: '#000',
-                                    shadowOpacity: 0.05,
-                                    shadowOffset: { width: 0, height: 1 },
-                                    shadowRadius: 3,
-                                }}
-                                accessibilityLabel={`${selectedShort} ${city.name} 선택`}
-                                accessibilityRole="button"
-                            >
-                                <Text style={{
-                                    fontSize: elderlyMode ? fs.lg : fs.base,
-                                    fontWeight: '600',
-                                    color: '#18181B',
-                                }}>
-                                    {city.name}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                <Text style={{ color: '#BFBFBF' }}>›</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: step === 'town' ? '#1565C0' : '#E0E0E0', justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>3</Text>
+                    </View>
+                    <Text style={{ fontSize: fs.sm, color: step === 'town' ? '#1565C0' : '#525252', fontWeight: step === 'town' ? '700' : '400' }}>구/동</Text>
+                </View>
+            </View>
+
+            {/* 지도 영역 (상단 45%) */}
+            <View style={{ flex: 5, borderBottomWidth: 1, borderBottomColor: '#E4E4E7' }}>
+                <GoogleMapView
+                    ref={localMapRef}
+                    style={{ flex: 1 }}
+                    vworldApiKey={VWORLD_API_KEY}
+                    initialRegion={mapRegion}
+                    onRegionChangeComplete={(r) => setMapRegion(r)}
+                    onPress={() => {}}
+                    onMarkerPress={() => {}}
+                    selectedMarker={null}
+                    markers={[]}
+                    userLocation={null}
+                    userHeading={null}
+                    headingMode={false}
+                    elderlyMode={false}
+                />
+            </View>
+
+            {/* 선택 패널 (하단 55%) */}
+            <View style={{ flex: 6, backgroundColor: '#FAFAFA' }}>
+                <Text style={{ fontSize: fs.base, color: '#525252', textAlign: 'center', paddingVertical: 8 }}>
+                    {guideText}
+                </Text>
+                <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 80 }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                        {listItems.map(item => {
+                            const isProvince = step === 'province';
+                            const provinceData = isProvince ? REGIONS.find(r => r.name === item.key) : null;
+                            const isMetro = provinceData && (item.key.includes('광역시') || item.key.includes('특별시') || item.key.includes('특별자치시'));
+                            return (
+                                <TouchableOpacity
+                                    key={item.key}
+                                    onPress={item.onPress}
+                                    style={{
+                                        backgroundColor: isProvince ? (isMetro ? '#1565C0' : '#2E7D32') : '#fff',
+                                        borderRadius: 12,
+                                        borderWidth: isProvince ? 0 : 1.5,
+                                        borderColor: '#E4E4E7',
+                                        paddingHorizontal: elderlyMode ? 16 : 12,
+                                        paddingVertical: elderlyMode ? 14 : 10,
+                                        minWidth: elderlyMode ? (isProvince ? 70 : 90) : (isProvince ? 56 : 76),
+                                        alignItems: 'center',
+                                        elevation: 3,
+                                        shadowColor: '#000',
+                                        shadowOpacity: 0.1,
+                                        shadowOffset: { width: 0, height: 1 },
+                                        shadowRadius: 3,
+                                    }}
+                                    accessibilityLabel={`${item.label} 선택`}
+                                    accessibilityRole="button"
+                                >
+                                    <Text style={{
+                                        fontSize: elderlyMode ? fs.lg : fs.base,
+                                        fontWeight: '700',
+                                        color: isProvince ? '#fff' : '#18181B',
+                                    }}>
+                                        {item.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
                     </View>
                 </ScrollView>
-            )}
+            </View>
         </View>
     );
 });
