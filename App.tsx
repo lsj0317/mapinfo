@@ -1449,7 +1449,7 @@ const StreetViewModal = React.memo(({
                     <Text style={svStyles.title} numberOfLines={1}>
                         {title || '실제이미지'}
                     </Text>
-                    <TouchableOpacity onPress={onClose} style={svStyles.closeBtn}>
+                    <TouchableOpacity onPress={onClose} style={svStyles.closeBtn} accessibilityLabel="실제이미지 닫기" accessibilityRole="button">
                         <Text style={svStyles.closeTxt}>✕ 닫기</Text>
                     </TouchableOpacity>
                 </View>
@@ -1551,6 +1551,8 @@ const FilterBar = React.memo(({
                     <TouchableOpacity
                         onPress={() => onChange(DEFAULT_FILTER)}
                         style={filterStyles.resetBtn}
+                        accessibilityLabel="필터 초기화"
+                        accessibilityRole="button"
                     >
                         <Text style={filterStyles.resetText}>초기화</Text>
                     </TouchableOpacity>
@@ -1569,6 +1571,9 @@ const FilterBar = React.memo(({
                                     key={cat}
                                     style={[filterStyles.chip, active && filterStyles.chipActive]}
                                     onPress={() => toggleCategory(cat)}
+                                    accessibilityLabel={`건물 유형 ${cat} ${active ? '선택됨' : ''}`}
+                                    accessibilityRole="button"
+                                    accessibilityState={{ selected: active }}
                                 >
                                     <Text style={[filterStyles.chipText, active && filterStyles.chipTextActive]}>
                                         {cat}
@@ -1586,6 +1591,9 @@ const FilterBar = React.memo(({
                                 key={opt.value}
                                 style={[filterStyles.chip, filter.minArea === opt.value && filterStyles.chipActive]}
                                 onPress={() => onChange({ ...filter, minArea: opt.value })}
+                                accessibilityLabel={`최소 면적 ${opt.label} ${filter.minArea === opt.value ? '선택됨' : ''}`}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: filter.minArea === opt.value }}
                             >
                                 <Text style={[filterStyles.chipText, filter.minArea === opt.value && filterStyles.chipTextActive]}>
                                     {opt.label}
@@ -1598,6 +1606,9 @@ const FilterBar = React.memo(({
                     <TouchableOpacity
                         style={filterStyles.toggleRow}
                         onPress={() => onChange({ ...filter, onlyHighPotential: !filter.onlyHighPotential })}
+                        accessibilityLabel={`고잠재력만 보기 ${filter.onlyHighPotential ? '켜짐' : '꺼짐'}`}
+                        accessibilityRole="switch"
+                        accessibilityState={{ checked: filter.onlyHighPotential }}
                     >
                         <Text style={filterStyles.toggleLabel}>
                             고잠재력만 보기 (500㎡+ 공장/창고)
@@ -1735,6 +1746,8 @@ const PhotoSection = ({
                     style={[photoStyles.addBtn, isUploading && { opacity: 0.5 }]}
                     onPress={handlePickImage}
                     disabled={isUploading}
+                    accessibilityLabel="현장 사진 추가"
+                    accessibilityRole="button"
                 >
                     {isUploading
                         ? <ActivityIndicator size="small" color="#fff" />
@@ -1752,8 +1765,11 @@ const PhotoSection = ({
                             key={idx}
                             onLongPress={() => handleDeletePhoto(url)}
                             style={photoStyles.photoWrap}
+                            accessibilityLabel={`현장 사진 ${idx + 1}. 길게 눌러 삭제`}
+                            accessibilityRole="imagebutton"
+                            accessibilityHint="길게 누르면 사진을 삭제합니다"
                         >
-                            <Image source={{ uri: url }} style={photoStyles.photo} />
+                            <Image source={{ uri: url }} style={photoStyles.photo} accessibilityLabel={`현장 사진 ${idx + 1}`} accessibilityRole="image" />
                             <View style={photoStyles.deleteHint}>
                                 <Text style={photoStyles.deleteHintText}>길게 눌러 삭제</Text>
                             </View>
@@ -1855,7 +1871,7 @@ const NotificationSection = ({ property, salesStatus }: { property: Property; sa
                         </Text>
                         <Text style={notifStyles.scheduledSub}>알림 예약됨</Text>
                     </View>
-                    <TouchableOpacity onPress={handleCancel} style={notifStyles.cancelBtn}>
+                    <TouchableOpacity onPress={handleCancel} style={notifStyles.cancelBtn} accessibilityLabel="알림 예약 취소" accessibilityRole="button">
                         <Text style={notifStyles.cancelBtnText}>취소</Text>
                     </TouchableOpacity>
                 </View>
@@ -1868,22 +1884,26 @@ const NotificationSection = ({ property, salesStatus }: { property: Property; sa
                         onChangeText={setDateInput}
                         keyboardType="numeric"
                         maxLength={10}
+                        accessibilityLabel="알림 날짜 입력. 연도 월 일 형식"
+                        accessibilityHint="예시: 2025-03-15"
                     />
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                        <TouchableOpacity style={notifStyles.cancelTextBtn} onPress={() => setShowDatePicker(false)}>
-                            <Text style={{ color: '#888' }}>취소</Text>
+                        <TouchableOpacity style={notifStyles.cancelTextBtn} onPress={() => setShowDatePicker(false)} accessibilityLabel="날짜 선택 취소" accessibilityRole="button">
+                            <Text style={{ color: '#636363' }}>취소</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[notifStyles.confirmBtn, isSaving && { opacity: 0.6 }]}
                             onPress={handleSchedule}
                             disabled={isSaving}
+                            accessibilityLabel="알림 예약 확인"
+                            accessibilityRole="button"
                         >
                             {isSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={notifStyles.confirmBtnText}>알림 예약</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>
             ) : (
-                <TouchableOpacity style={notifStyles.addBtn} onPress={() => setShowDatePicker(true)}>
+                <TouchableOpacity style={notifStyles.addBtn} onPress={() => setShowDatePicker(true)} accessibilityLabel="연락 예정일 알림 설정" accessibilityRole="button">
                     <Text style={notifStyles.addBtnText}>연락 예정일 알림 설정</Text>
                 </TouchableOpacity>
             )}
@@ -2398,10 +2418,10 @@ const rxs = StyleSheet.create({
     titleTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
     docHeader: { backgroundColor: '#fff', margin: 10, borderRadius: 4, padding: 14, borderWidth: 1.5, borderColor: '#333' },
     docTitle: { fontSize: 15, fontWeight: '700', textAlign: 'center', color: '#000' },
-    docSubtitle: { fontSize: 14, textAlign: 'center', color: '#555', marginBottom: 6 },
+    docSubtitle: { fontSize: 14, textAlign: 'center', color: '#525252', marginBottom: 6 },
     divider: { height: 1, backgroundColor: '#333', marginVertical: 8 },
     docRow: { flexDirection: 'row', marginTop: 3 },
-    docLabel: { fontSize: 14, color: '#666', width: 72 },
+    docLabel: { fontSize: 14, color: '#525252', width: 72 },
     docValue: { fontSize: 14, color: '#000', flex: 1 },
     sectionHeader: { backgroundColor: '#37474F', paddingVertical: 7, paddingHorizontal: 12, marginTop: 10, marginHorizontal: 10, borderTopLeftRadius: 4, borderTopRightRadius: 4, alignItems: 'center' },
     sectionHeaderText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 1 },
@@ -2412,7 +2432,7 @@ const rxs = StyleSheet.create({
     cell: { padding: 4, borderRightWidth: 1, borderRightColor: '#999' },
     cellTxt: { fontSize: 13, color: '#222', lineHeight: 14 },
     footer: { margin: 10, marginTop: 14, padding: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ccc', borderRadius: 4, alignItems: 'center' },
-    footerTxt: { fontSize: 14, color: '#555', textAlign: 'center' },
+    footerTxt: { fontSize: 14, color: '#525252', textAlign: 'center' },
     footerDate: { fontSize: 15, fontWeight: '600', color: '#333', marginTop: 4 },
     footerJuris: { fontSize: 15, color: '#333', marginTop: 2 },
     closeBtn: { backgroundColor: '#37474F', margin: 12, borderRadius: 10, paddingVertical: 16, alignItems: 'center', minHeight: 56 },
@@ -2505,7 +2525,7 @@ const landUseStyles = StyleSheet.create({
     },
     loadingText: {
         fontSize: 13,
-        color: '#555',
+        color: '#525252',
     },
     header: {
         flexDirection: 'row',
@@ -2535,7 +2555,7 @@ const landUseStyles = StyleSheet.create({
     },
     label: {
         fontSize: 15,
-        color: '#666',
+        color: '#525252',
         width: 60,
     },
     value: {
@@ -2555,7 +2575,7 @@ const landUseStyles = StyleSheet.create({
     },
     disclaimer: {
         fontSize: 13,
-        color: '#888',
+        color: '#636363',
         marginTop: 4,
         fontStyle: 'italic',
     },
@@ -2779,8 +2799,8 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                     {marker && !directMode && (
                         <View style={{ marginBottom: 12 }}>
                             <Text style={styles.modalLabel}>선택된 위치</Text>
-                            <Text style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>{marker.address}</Text>
-                            {pnu ? <Text style={{ fontSize: 15, color: '#888' }}>PNU: {pnu}</Text> : null}
+                            <Text style={{ fontSize: 13, color: '#525252', marginBottom: 4 }}>{marker.address}</Text>
+                            {pnu ? <Text style={{ fontSize: 15, color: '#636363' }}>PNU: {pnu}</Text> : null}
                         </View>
                     )}
 
@@ -3177,7 +3197,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
             {isLoading && (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color="#71717A" />
-                    <Text style={{ marginTop: 10, color: '#888' }}>검색 중...</Text>
+                    <Text style={{ marginTop: 10, color: '#636363' }}>검색 중...</Text>
                 </View>
             )}
 
@@ -3952,7 +3972,7 @@ const PlaceManagementModal = ({ visible, onClose, latitude, longitude, address }
                             <Text style={{ fontSize: 15, color: '#333', fontWeight: '600' }}>닫기</Text>
                         </TouchableOpacity>
                     </View>
-                    <Text style={{ fontSize: fs.sm, color: '#666', marginBottom: 14 }} numberOfLines={2}>{address}</Text>
+                    <Text style={{ fontSize: fs.sm, color: '#525252', marginBottom: 14 }} numberOfLines={2}>{address}</Text>
 
                     {/* 상태 선택 */}
                     <Text style={{ fontSize: fs.sm, fontWeight: '600', color: '#444', marginBottom: 8 }}>영업 상태</Text>
@@ -6000,9 +6020,9 @@ const ImprovementsScreen = ({ onBack }: { onBack: () => void }) => {
                             <Text style={{ color: '#fff', fontSize: fs.xs, fontWeight: '700' }}>{selectedItem.category}</Text>
                         </View>
                         {selectedItem.version && (
-                            <Text style={{ fontSize: fs.xs, color: '#888', marginRight: 8 }}>v{selectedItem.version}</Text>
+                            <Text style={{ fontSize: fs.xs, color: '#636363', marginRight: 8 }}>v{selectedItem.version}</Text>
                         )}
-                        <Text style={{ fontSize: fs.xs, color: '#999' }}>
+                        <Text style={{ fontSize: fs.xs, color: '#636363' }}>
                             {new Date(selectedItem.created_at).toLocaleDateString('ko-KR')}
                         </Text>
                     </View>
@@ -6028,7 +6048,7 @@ const ImprovementsScreen = ({ onBack }: { onBack: () => void }) => {
                 onEndReachedThreshold={0.3}
                 ListEmptyComponent={
                     isLoading ? <ActivityIndicator style={{ marginTop: 40 }} /> :
-                    <Text style={{ textAlign: 'center', color: '#aaa', marginTop: 40, fontSize: fs.base }}>등록된 내용이 없습니다.</Text>
+                    <Text style={{ textAlign: 'center', color: '#737373', marginTop: 40, fontSize: fs.base }}>등록된 내용이 없습니다.</Text>
                 }
                 ListFooterComponent={isLoading && items.length > 0 ? <ActivityIndicator style={{ marginVertical: 12 }} /> : null}
                 renderItem={({ item }) => (
@@ -6041,14 +6061,14 @@ const ImprovementsScreen = ({ onBack }: { onBack: () => void }) => {
                                 <Text style={{ color: '#fff', fontSize: fs.xs, fontWeight: '700' }}>{item.category}</Text>
                             </View>
                             {item.version && (
-                                <Text style={{ fontSize: fs.xs, color: '#888', marginRight: 6 }}>v{item.version}</Text>
+                                <Text style={{ fontSize: fs.xs, color: '#636363', marginRight: 6 }}>v{item.version}</Text>
                             )}
-                            <Text style={{ fontSize: fs.xs, color: '#bbb', marginLeft: 'auto' }}>
+                            <Text style={{ fontSize: fs.xs, color: '#737373', marginLeft: 'auto' }}>
                                 {new Date(item.created_at).toLocaleDateString('ko-KR')}
                             </Text>
                         </View>
                         <Text style={{ fontSize: fs.base, fontWeight: '600', color: '#222', marginBottom: 4 }}>{item.title}</Text>
-                        <Text style={{ fontSize: fs.sm, color: '#666' }} numberOfLines={1}>{item.content}</Text>
+                        <Text style={{ fontSize: fs.sm, color: '#525252' }} numberOfLines={1}>{item.content}</Text>
                     </TouchableOpacity>
                 )}
             />
