@@ -184,6 +184,10 @@ interface VWorldPlaceItem {
 interface VWorldSearchResponse {
     response: {
         status: string;
+        record?: {
+            total: string;
+            current: string;
+        };
         result?: {
             items: VWorldPlaceItem[];
         };
@@ -4710,15 +4714,19 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
         setStep('result');
     }, [selectedProvince, selectedCity, selectedCategory]);
 
-    // result 스텝: 검색 건수 조회
+    // result 스텝: 검색 건수 및 목록 조회
     const [resultCount, setResultCount] = useState<number | null>(null);
+    const [resultItems, setResultItems] = useState<VWorldPlaceItem[]>([]);
     const [resultLoading, setResultLoading] = useState(false);
+    const [resultListOpen, setResultListOpen] = useState(false);
 
     useEffect(() => {
         if (step !== 'result' || !selectedProvince || !selectedCity || !selectedCategory) return;
         let cancelled = false;
         setResultLoading(true);
         setResultCount(null);
+        setResultItems([]);
+        setResultListOpen(false);
 
         (async () => {
             try {
@@ -4737,7 +4745,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
 
                 const responses = await Promise.all(
                     keywords.map(keyword =>
-                        fetch(`https://api.vworld.kr/req/search?service=search&request=search&version=2.0&crs=EPSG:4326&size=1&page=1&query=${encodeURIComponent(keyword)}&type=place&format=json&errorformat=json&bbox=${bbox}&key=${VWORLD_API_KEY}`)
+                        fetch(`https://api.vworld.kr/req/search?service=search&request=search&version=2.0&crs=EPSG:4326&size=20&page=1&query=${encodeURIComponent(keyword)}&type=place&format=json&errorformat=json&bbox=${bbox}&key=${VWORLD_API_KEY}`)
                             .then(r => r.json())
                             .catch(() => null)
                     )
@@ -4745,16 +4753,27 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
 
                 if (cancelled) return;
                 let total = 0;
-                responses.forEach((json: any) => {
-                    if (json?.response?.record?.total) {
+                const allItems: VWorldPlaceItem[] = [];
+                const seenIds = new Set<string>();
+
+                responses.forEach((json: VWorldSearchResponse | null) => {
+                    if (!json || json.response.status === 'NOT_FOUND' || !json.response.result) return;
+                    if (json.response.record?.total) {
                         total += parseInt(json.response.record.total, 10);
-                    } else if (json?.response?.status === 'OK' && json?.response?.result?.items) {
-                        total += json.response.result.items.length;
                     }
+                    json.response.result.items.forEach((item: VWorldPlaceItem) => {
+                        if (!seenIds.has(item.id)) {
+                            seenIds.add(item.id);
+                            allItems.push(item);
+                        }
+                    });
                 });
+
+                if (total === 0) total = allItems.length;
                 setResultCount(total);
+                setResultItems(allItems);
             } catch {
-                if (!cancelled) setResultCount(0);
+                if (!cancelled) { setResultCount(0); setResultItems([]); }
             } finally {
                 if (!cancelled) setResultLoading(false);
             }
@@ -5326,11 +5345,17 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                             </View>
                         </View>
 
-                        {/* 검색 건수 */}
-                        <View style={{
-                            backgroundColor: '#18181B', borderRadius: 16, padding: 20,
-                            alignItems: 'center', marginBottom: 24,
-                        }}>
+                        {/* 검색 건수 (탭하면 목록 토글) */}
+                        <TouchableOpacity
+                            onPress={() => { if (!resultLoading && resultItems.length > 0) setResultListOpen(prev => !prev); }}
+                            activeOpacity={resultItems.length > 0 ? 0.7 : 1}
+                            style={{
+                                backgroundColor: '#18181B', borderRadius: 16, padding: 20,
+                                alignItems: 'center', marginBottom: resultListOpen ? 0 : 24,
+                                borderBottomLeftRadius: resultListOpen ? 0 : 16,
+                                borderBottomRightRadius: resultListOpen ? 0 : 16,
+                            }}
+                        >
                             {resultLoading ? (
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                     <ActivityIndicator color="#FAFAFA" size="small" />
@@ -5339,13 +5364,81 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                                     </Text>
                                 </View>
                             ) : (
-                                <Text style={{ fontSize: fs.xl, fontWeight: '700', color: '#FAFAFA' }}>
-                                    {resultCount !== null && resultCount > 0
-                                        ? `총 ${resultCount}건 찾았습니다`
-                                        : '검색 준비 완료'}
-                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <Text style={{ fontSize: fs.xl, fontWeight: '700', color: '#FAFAFA' }}>
+                                        {resultCount !== null && resultCount > 0
+                                            ? `총 ${resultCount}건 찾았습니다`
+                                            : '검색 준비 완료'}
+                                    </Text>
+                                    {resultItems.length > 0 && (
+                                        <Text style={{ fontSize: 14, color: '#A1A1AA', fontWeight: '600' }}>
+                                            {resultListOpen ? '▲' : '▼'}
+                                        </Text>
+                                    )}
+                                </View>
                             )}
-                        </View>
+                        </TouchableOpacity>
+
+                        {/* 검색 결과 목록 */}
+                        {resultListOpen && resultItems.length > 0 && (
+                            <View style={{
+                                backgroundColor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16,
+                                borderWidth: 1, borderTopWidth: 0, borderColor: '#E4E4E7',
+                                marginBottom: 24, overflow: 'hidden',
+                            }}>
+                                {resultItems.map((item, idx) => (
+                                    <TouchableOpacity
+                                        key={item.id}
+                                        onPress={() => {
+                                            if (!selectedProvince || !selectedCity || !selectedCategory) return;
+                                            const lat = parseFloat(item.point.y);
+                                            const lng = parseFloat(item.point.x);
+                                            if (!isNaN(lat) && !isNaN(lng)) {
+                                                onComplete(selectedProvince, selectedCity, selectedCategory, lat, lng);
+                                            }
+                                        }}
+                                        style={{
+                                            flexDirection: 'row', alignItems: 'center',
+                                            paddingHorizontal: 16, paddingVertical: 14,
+                                            borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#F4F4F5',
+                                        }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`${item.title} 지도에서 보기`}
+                                    >
+                                        {/* 지도 아이콘 */}
+                                        <View style={{
+                                            width: 36, height: 36, borderRadius: 10,
+                                            backgroundColor: '#F4F4F5', alignItems: 'center', justifyContent: 'center',
+                                            marginRight: 12,
+                                        }}>
+                                            <View style={{ alignItems: 'center' }}>
+                                                <View style={{
+                                                    width: 10, height: 10, borderRadius: 5,
+                                                    borderWidth: 2, borderColor: '#18181B', backgroundColor: 'transparent',
+                                                }} />
+                                                <View style={{
+                                                    width: 0, height: 0, marginTop: -1,
+                                                    borderLeftWidth: 3, borderRightWidth: 3, borderTopWidth: 5,
+                                                    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                                    borderTopColor: '#18181B',
+                                                }} />
+                                            </View>
+                                        </View>
+                                        {/* 텍스트 */}
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ fontSize: fs.md, fontWeight: '600', color: '#18181B', marginBottom: 2 }} numberOfLines={1}>
+                                                {item.title}
+                                            </Text>
+                                            <Text style={{ fontSize: fs.sm, color: '#71717A' }} numberOfLines={1}>
+                                                {item.address.road || item.address.parcel || '주소 정보 없음'}
+                                            </Text>
+                                        </View>
+                                        {/* 화살표 */}
+                                        <Text style={{ fontSize: 16, color: '#A1A1AA', marginLeft: 8 }}>{'>'}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
 
                         {/* 지도에서 보기 버튼 */}
                         <TouchableOpacity
