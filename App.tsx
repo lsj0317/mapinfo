@@ -5971,7 +5971,7 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
     const { elderlyMode, tilkoBalance, setTilkoBalance } = useMapStore();
     const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
-    type MoreView = 'menu' | 'search' | 'recent' | 'favorites' | 'registry' | 'settings' | 'improvements' | 'stats' | 'notifications' | 'reminders' | 'activity' | 'buildings' | 'places';
+    type MoreView = 'menu' | 'recent' | 'favorites' | 'registry' | 'settings' | 'improvements' | 'stats' | 'notifications' | 'reminders' | 'activity' | 'buildings' | 'places';
     const [currentView, setCurrentView] = useState<MoreView>('menu');
     const [balanceLoading, setBalanceLoading] = useState(false);
 
@@ -5981,7 +5981,6 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
         if (bal !== null) setTilkoBalance(bal);
         setBalanceLoading(false);
     }, [setTilkoBalance]);
-    if (currentView === 'search') return <PlaceSearchScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'recent') return <RecentPlacesScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'favorites') return <FavoritePlacesScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'registry') return <RegistryHistoryScreen onBack={() => setCurrentView('menu')} />;
@@ -6063,14 +6062,6 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
                 accessibilityRole="button"
             >
                 <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>영업 통계</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
-                onPress={() => setCurrentView('search')}
-                accessibilityLabel="장소 검색 화면으로 이동"
-                accessibilityRole="button"
-            >
-                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>장소 검색</Text>
             </TouchableOpacity>
             <TouchableOpacity
                 style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
@@ -7174,8 +7165,15 @@ function AppContent() {
                 return (
                     <HomeScreen
                         onSelectRegion={() => setCurrentTab('regionSelect')}
-                        onSelectSearch={() => setCurrentTab('map')}
+                        onSelectSearch={() => setCurrentTab('homeSearch')}
                         onSelectMap={() => setCurrentTab('map')}
+                    />
+                );
+            case 'homeSearch':
+                return (
+                    <PlaceSearchScreen
+                        onBack={() => setCurrentTab('home')}
+                        onMoveToMap={() => setCurrentTab('map')}
                     />
                 );
             case 'regionSelect':
@@ -7580,12 +7578,12 @@ function AppContent() {
                     { id: 'home', label: '홈',    a11y: '홈 탭' },
                     { id: 'more', label: '더보기', a11y: '더보기 탭' },
                 ] as { id: string; label: string; a11y: string }[]).map(tab => {
-                    const active = currentTab === tab.id;
+                    const active = currentTab === tab.id || (tab.id === 'home' && currentTab === 'homeSearch');
                     return (
                         <TouchableOpacity
                             key={tab.id}
                             style={styles.menuItem}
-                            onPress={() => { setCurrentTab(tab.id); }}
+                            onPress={() => { setCurrentTab(tab.id === 'home' && currentTab === 'homeSearch' ? 'home' : tab.id); }}
                             accessibilityLabel={tab.a11y}
                             accessibilityRole="tab"
                             accessibilityState={{ selected: active }}
