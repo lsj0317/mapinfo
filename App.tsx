@@ -3116,11 +3116,11 @@ const DAUM_POSTCODE_HTML = `
 
 // ===== PlaceSearchScreen =====
 
-const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMoveToMap: () => void }) => {
+const PlaceSearchScreen = ({ onBack, onMoveToMap, autoOpenDaum }: { onBack: () => void; onMoveToMap: () => void; autoOpenDaum?: boolean }) => {
     const [searchText, setSearchText] = useState('');
     const [searchResults, setSearchResults] = useState<Building[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [daumModalVisible, setDaumModalVisible] = useState(false);
+    const [daumModalVisible, setDaumModalVisible] = useState(autoOpenDaum || false);
     const [pendingResult, setPendingResult] = useState<Building | null>(null);
     const { setRegion, setSelectedMarker, elderlyMode } = useMapStore();
     const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
@@ -3260,30 +3260,41 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
             {!isLoading && pendingResult && (
                 <View style={styles.pendingCard}>
                     <View style={styles.pendingCardBadge}>
-                        <Text style={styles.pendingCardBadgeText}>다음 주소검색 결과</Text>
+                        <Text style={styles.pendingCardBadgeText}>주소 검색 결과</Text>
                     </View>
-                    <Text style={styles.pendingCardName} numberOfLines={2}>
+                    <Text style={[styles.pendingCardName, elderlyMode && { fontSize: fs.xl }]} numberOfLines={2}>
                         {pendingResult.name}
                     </Text>
-                    <Text style={styles.pendingCardAddress} numberOfLines={2}>
+                    <Text style={[styles.pendingCardAddress, elderlyMode && { fontSize: fs.lg }]} numberOfLines={2}>
                         {pendingResult.address}
                     </Text>
-                    <Text style={styles.pendingCardCoord}>
-                        {pendingResult.latitude.toFixed(6)}, {pendingResult.longitude.toFixed(6)}
-                    </Text>
+                    {!elderlyMode && (
+                        <Text style={styles.pendingCardCoord}>
+                            {pendingResult.latitude.toFixed(6)}, {pendingResult.longitude.toFixed(6)}
+                        </Text>
+                    )}
                     <View style={styles.pendingCardButtons}>
                         <TouchableOpacity
-                            style={styles.pendingCancelButton}
+                            style={[styles.pendingCancelButton, elderlyMode && { paddingVertical: 16 }]}
                             onPress={() => setPendingResult(null)}
                         >
-                            <Text style={styles.pendingCancelButtonText}>취소</Text>
+                            <Text style={[styles.pendingCancelButtonText, elderlyMode && { fontSize: fs.lg }]}>취소</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.pendingConfirmButton}
-                            onPress={confirmPendingResult}
-                        >
-                            <Text style={styles.pendingConfirmButtonText}>확인 (목록에 추가)</Text>
-                        </TouchableOpacity>
+                        {elderlyMode ? (
+                            <TouchableOpacity
+                                style={[styles.pendingConfirmButton, { flex: 2, paddingVertical: 16 }]}
+                                onPress={() => moveToLocation(pendingResult)}
+                            >
+                                <Text style={[styles.pendingConfirmButtonText, { fontSize: fs.lg }]}>이 장소로 이동</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity
+                                style={styles.pendingConfirmButton}
+                                onPress={confirmPendingResult}
+                            >
+                                <Text style={styles.pendingConfirmButtonText}>확인 (목록에 추가)</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
             )}
@@ -4732,8 +4743,8 @@ const HomeScreen = ({ onSelectRegion, onSelectSearch, onSelectMap }: HomeScreenP
             onPress: onSelectRegion,
         },
         {
-            title: '검색하여 선택',
-            desc: '주소 또는 장소명으로 검색하여 원하는 위치를 찾습니다.',
+            title: '주소로 장소 찾기',
+            desc: '주소를 입력하면 해당 장소로 바로 이동합니다.',
             onPress: onSelectSearch,
         },
         {
@@ -7526,6 +7537,7 @@ function AppContent() {
                     <PlaceSearchScreen
                         onBack={() => setCurrentTab('home')}
                         onMoveToMap={() => setCurrentTab('map')}
+                        autoOpenDaum={true}
                     />
                 );
             case 'regionSelect':
