@@ -4749,7 +4749,7 @@ const HomeScreen = ({ onSelectRegion, onSelectSearch, onSelectMap }: HomeScreenP
         },
         {
             title: '지도에서 선택',
-            desc: '지도를 직접 탐색하며 건물을 확인하고 선택합니다.',
+            desc: '대한민국 지도에서 지역을 선택하면 해당 지역으로 이동합니다.',
             onPress: onSelectMap,
         },
     ];
@@ -4793,6 +4793,245 @@ const HomeScreen = ({ onSelectRegion, onSelectSearch, onSelectMap }: HomeScreenP
         </View>
     );
 };
+
+// ===== MapSelectScreen (인터랙티브 대한민국 지도 선택) =====
+
+// 도/광역시별 대략적 위치 비율 (한반도 기준 상대 좌표 %)
+const PROVINCE_POSITIONS: Record<string, { top: number; left: number }> = {
+    '서울특별시': { top: 18, left: 38 },
+    '경기도': { top: 22, left: 32 },
+    '인천광역시': { top: 22, left: 22 },
+    '강원특별자치도': { top: 16, left: 60 },
+    '충청북도': { top: 36, left: 48 },
+    '충청남도': { top: 38, left: 26 },
+    '대전광역시': { top: 42, left: 38 },
+    '세종특별자치시': { top: 36, left: 34 },
+    '전북특별자치도': { top: 52, left: 30 },
+    '전라남도': { top: 66, left: 26 },
+    '광주광역시': { top: 62, left: 24 },
+    '경상북도': { top: 34, left: 68 },
+    '대구광역시': { top: 44, left: 66 },
+    '경상남도': { top: 56, left: 60 },
+    '울산광역시': { top: 48, left: 78 },
+    '부산광역시': { top: 58, left: 74 },
+    '제주특별자치도': { top: 88, left: 30 },
+};
+
+interface MapSelectScreenProps {
+    onBack: () => void;
+    onSelect: (lat: number, lng: number, label: string) => void;
+}
+
+const MapSelectScreen = React.memo(({ onBack, onSelect }: MapSelectScreenProps) => {
+    const { elderlyMode } = useMapStore();
+    const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
+
+    const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
+    const [cities, setCities] = useState<{ name: string; lat: number; lng: number }[]>([]);
+    const [loadingCities, setLoadingCities] = useState(false);
+    const [provinces] = useState(DEFAULT_PROVINCES);
+
+    const loadCities = useCallback(async (provinceName: string) => {
+        setLoadingCities(true);
+        setCities([]);
+        try {
+            const provinceMatch = DEFAULT_PROVINCES.find(p => p.name === provinceName);
+            // Supabase 조회
+            if (provinceMatch) {
+                const { data: provData } = await supabase
+                    .from('provinces')
+                    .select('id')
+                    .eq('name', provinceName)
+                    .single();
+                if (provData?.id) {
+                    const { data, error } = await supabase
+                        .from('cities')
+                        .select('name, latitude, longitude, sort_order')
+                        .eq('province_id', provData.id)
+                        .order('sort_order', { ascending: true });
+                    if (data && data.length > 0 && !error) {
+                        setCities(data.map((c: any) => ({ name: c.name, lat: c.latitude, lng: c.longitude })));
+                        setLoadingCities(false);
+                        return;
+                    }
+                }
+            }
+            // 폴백: regions.ts
+            const shortName = provinceMatch?.short;
+            const regionMatch = REGIONS.find(r => r.name === provinceName || r.short === shortName);
+            if (regionMatch) {
+                setCities(regionMatch.cities.map(c => ({ name: c.name, lat: c.latitude, lng: c.longitude })));
+            }
+        } catch {
+            const shortName = DEFAULT_PROVINCES.find(p => p.name === provinceName)?.short;
+            const regionMatch = REGIONS.find(r => r.name === provinceName || r.short === shortName);
+            if (regionMatch) {
+                setCities(regionMatch.cities.map(c => ({ name: c.name, lat: c.latitude, lng: c.longitude })));
+            }
+        } finally {
+            setLoadingCities(false);
+        }
+    }, []);
+
+    const handleProvincePress = (province: typeof DEFAULT_PROVINCES[0]) => {
+        hapticFeedback();
+        // 세종은 시군구가 없으므로 바로 이동
+        if (province.name === '세종특별자치시') {
+            onSelect(province.lat, province.lng, province.short);
+            return;
+        }
+        setSelectedProvince(province.name);
+        loadCities(province.name);
+    };
+
+    const handleCityPress = (city: { name: string; lat: number; lng: number }) => {
+        hapticFeedback();
+        const shortName = DEFAULT_PROVINCES.find(p => p.name === selectedProvince)?.short || '';
+        onSelect(city.lat, city.lng, `${shortName} ${city.name}`);
+    };
+
+    const handleBackToProvinces = () => {
+        hapticFeedback();
+        setSelectedProvince(null);
+        setCities([]);
+    };
+
+    // 도/광역시 선택 (대한민국 지도 뷰)
+    if (!selectedProvince) {
+        return (
+            <View style={styles.subScreenContainer}>
+                <View style={styles.subScreenHeader}>
+                    <TouchableOpacity onPress={() => { hapticFeedback(); onBack(); }} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
+                        <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>지역 선택</Text>
+                    <View style={{ width: 50 }} />
+                </View>
+
+                <Text style={{ fontSize: fs.base, color: '#525252', textAlign: 'center', marginTop: 8, marginBottom: 4 }}>
+                    원하는 지역을 터치하세요
+                </Text>
+
+                {/* 대한민국 지도 형태 배치 */}
+                <View style={{ flex: 1, position: 'relative', marginHorizontal: 8 }}>
+                    {provinces.map(p => {
+                        const pos = PROVINCE_POSITIONS[p.name];
+                        if (!pos) return null;
+                        const isMetro = p.name.includes('광역시') || p.name.includes('특별시') || p.name.includes('특별자치시');
+                        return (
+                            <TouchableOpacity
+                                key={p.name}
+                                onPress={() => handleProvincePress(p)}
+                                style={{
+                                    position: 'absolute',
+                                    top: `${pos.top}%`,
+                                    left: `${pos.left}%`,
+                                    transform: [{ translateX: -30 }, { translateY: -20 }],
+                                    backgroundColor: isMetro ? '#1565C0' : '#2E7D32',
+                                    borderRadius: 12,
+                                    paddingHorizontal: elderlyMode ? 14 : 10,
+                                    paddingVertical: elderlyMode ? 10 : 7,
+                                    minWidth: elderlyMode ? 64 : 52,
+                                    alignItems: 'center',
+                                    elevation: 4,
+                                    shadowColor: '#000',
+                                    shadowOpacity: 0.15,
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowRadius: 4,
+                                    zIndex: isMetro ? 10 : 5,
+                                }}
+                                accessibilityLabel={`${p.short} 선택`}
+                                accessibilityRole="button"
+                            >
+                                <Text style={{
+                                    color: '#fff',
+                                    fontSize: elderlyMode ? fs.lg : fs.base,
+                                    fontWeight: '700',
+                                    textAlign: 'center',
+                                }}>
+                                    {p.short}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+
+                {/* 범례 */}
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, paddingBottom: 16, paddingTop: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ width: 14, height: 14, borderRadius: 4, backgroundColor: '#1565C0' }} />
+                        <Text style={{ fontSize: fs.sm, color: '#525252' }}>광역시/특별시</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ width: 14, height: 14, borderRadius: 4, backgroundColor: '#2E7D32' }} />
+                        <Text style={{ fontSize: fs.sm, color: '#525252' }}>도</Text>
+                    </View>
+                </View>
+            </View>
+        );
+    }
+
+    // 시/군/구 선택
+    const selectedShort = DEFAULT_PROVINCES.find(p => p.name === selectedProvince)?.short || '';
+    return (
+        <View style={styles.subScreenContainer}>
+            <View style={styles.subScreenHeader}>
+                <TouchableOpacity onPress={handleBackToProvinces} style={styles.backButton} accessibilityLabel="지역 선택으로 돌아가기" accessibilityRole="button">
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
+                </TouchableOpacity>
+                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>{selectedShort} 시/군/구</Text>
+                <View style={{ width: 50 }} />
+            </View>
+
+            {loadingCities ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#1565C0" />
+                    <Text style={{ marginTop: 12, fontSize: fs.base, color: '#525252' }}>시/군/구를 불러오는 중...</Text>
+                </View>
+            ) : cities.length === 0 ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+                    <Text style={{ fontSize: fs.lg, color: '#525252', textAlign: 'center' }}>시/군/구 정보가 없습니다.</Text>
+                </View>
+            ) : (
+                <ScrollView contentContainerStyle={{ padding: 12, paddingBottom: 100 }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                        {cities.map(city => (
+                            <TouchableOpacity
+                                key={city.name}
+                                onPress={() => handleCityPress(city)}
+                                style={{
+                                    backgroundColor: '#fff',
+                                    borderRadius: 12,
+                                    borderWidth: 1.5,
+                                    borderColor: '#E4E4E7',
+                                    paddingHorizontal: elderlyMode ? 18 : 14,
+                                    paddingVertical: elderlyMode ? 16 : 12,
+                                    minWidth: elderlyMode ? 100 : 80,
+                                    alignItems: 'center',
+                                    elevation: 2,
+                                    shadowColor: '#000',
+                                    shadowOpacity: 0.05,
+                                    shadowOffset: { width: 0, height: 1 },
+                                    shadowRadius: 3,
+                                }}
+                                accessibilityLabel={`${selectedShort} ${city.name} 선택`}
+                                accessibilityRole="button"
+                            >
+                                <Text style={{
+                                    fontSize: elderlyMode ? fs.lg : fs.base,
+                                    fontWeight: '600',
+                                    color: '#18181B',
+                                }}>
+                                    {city.name}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </ScrollView>
+            )}
+        </View>
+    );
+});
 
 // ===== RegionSelectScreen (토스 스타일 스텝 선택) =====
 
@@ -7529,7 +7768,7 @@ function AppContent() {
                     <HomeScreen
                         onSelectRegion={() => setCurrentTab('regionSelect')}
                         onSelectSearch={() => setCurrentTab('homeSearch')}
-                        onSelectMap={() => setCurrentTab('map')}
+                        onSelectMap={() => setCurrentTab('mapSelect')}
                     />
                 );
             case 'homeSearch':
@@ -7551,6 +7790,20 @@ function AppContent() {
                             const shortName = DEFAULT_PROVINCES.find(p => p.name === province)?.short || province;
                             setSelectedRegionLabel(`${shortName} ${city}`);
                             AsyncStorage.setItem(SELECTED_REGION_KEY, `${shortName} ${city}`).catch(() => {});
+                            setCurrentTab('map');
+                        }}
+                    />
+                );
+            case 'mapSelect':
+                return (
+                    <MapSelectScreen
+                        onBack={() => setCurrentTab('home')}
+                        onSelect={(lat, lng, label) => {
+                            const newRegion = { latitude: lat, longitude: lng, latitudeDelta: 0.05, longitudeDelta: 0.05 };
+                            setRegion(newRegion);
+                            animateActiveMap(newRegion, 600);
+                            setSelectedRegionLabel(label);
+                            AsyncStorage.setItem(SELECTED_REGION_KEY, label).catch(() => {});
                             setCurrentTab('map');
                         }}
                     />
@@ -8022,12 +8275,12 @@ function AppContent() {
                     { id: 'home', label: '홈',    a11y: '홈 탭' },
                     { id: 'more', label: '메뉴', a11y: '메뉴 탭' },
                 ] as { id: string; label: string; a11y: string }[]).map(tab => {
-                    const active = currentTab === tab.id || (tab.id === 'home' && currentTab === 'homeSearch');
+                    const active = currentTab === tab.id || (tab.id === 'home' && (currentTab === 'homeSearch' || currentTab === 'mapSelect' || currentTab === 'regionSelect'));
                     return (
                         <TouchableOpacity
                             key={tab.id}
                             style={styles.menuItem}
-                            onPress={() => { hapticFeedback(5); setCurrentTab(tab.id === 'home' && currentTab === 'homeSearch' ? 'home' : tab.id); }}
+                            onPress={() => { hapticFeedback(5); setCurrentTab(tab.id === 'home' && (currentTab === 'homeSearch' || currentTab === 'mapSelect' || currentTab === 'regionSelect') ? 'home' : tab.id); }}
                             accessibilityLabel={tab.a11y}
                             accessibilityRole="tab"
                             accessibilityState={{ selected: active }}
