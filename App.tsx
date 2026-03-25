@@ -2803,9 +2803,14 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                     )}
 
                     {isLoading ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                        <View style={{ alignItems: 'center', paddingVertical: 28, backgroundColor: '#F8FAFC', borderRadius: 12, marginBottom: 12 }}>
                             <ActivityIndicator size="large" color="#3498DB" />
-                            <Text style={{ marginTop: 10, color: '#555', fontSize: 14 }}>{status}</Text>
+                            <Text style={{ marginTop: 14, color: '#333', fontSize: 17, fontWeight: '600', textAlign: 'center', lineHeight: 26 }}>
+                                {status || '잠시만 기다려주세요...'}
+                            </Text>
+                            <Text style={{ marginTop: 6, color: '#737373', fontSize: 14 }}>
+                                조회에 시간이 걸릴 수 있습니다
+                            </Text>
                         </View>
                     ) : null}
 
@@ -2822,37 +2827,61 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                     ) : null}
 
                     {result ? (
-                        <View style={styles.modalResultBox}>
+                        <View style={{ marginBottom: 16 }}>
                             {fromCache && (
-                                <View style={{ backgroundColor: '#E8F5E9', padding: 8, borderRadius: 6, marginBottom: 10 }}>
-                                    <Text style={{ fontSize: 15, color: '#2E7D32', textAlign: 'center' }}>
-                                        저장된 데이터입니다 (API 비용 미발생)
+                                <View style={{ backgroundColor: '#E8F5E9', padding: 12, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: '#A5D6A7' }}>
+                                    <Text style={{ fontSize: 15, color: '#2E7D32', textAlign: 'center', fontWeight: '600' }}>
+                                        ✅ 저장된 데이터입니다 (API 비용 미발생)
                                     </Text>
                                 </View>
                             )}
-                            <Text style={styles.modalResultLabel}>소유주</Text>
-                            <Text style={styles.modalResultValue}>{result.owner}</Text>
-                            <Text style={styles.modalResultLabel}>주소</Text>
-                            <Text style={styles.modalResultValue}>{result.address}</Text>
-                            {xmlData ? (
+
+                            {/* 카드형 요약 UI */}
+                            <View style={{ backgroundColor: '#fff', borderRadius: 14, borderWidth: 1.5, borderColor: '#BFBFBF', overflow: 'hidden' }}>
+                                {/* 소유주 카드 */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#EBEBEB' }}>
+                                    <Text style={{ fontSize: 28, marginRight: 14 }}>👤</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 14, color: '#737373', fontWeight: '600', marginBottom: 2 }}>소유주</Text>
+                                        <Text style={{ fontSize: 20, color: '#18181B', fontWeight: '800' }}>{result.owner}</Text>
+                                    </View>
+                                </View>
+
+                                {/* 주소 카드 */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
+                                    <Text style={{ fontSize: 28, marginRight: 14 }}>📍</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 14, color: '#737373', fontWeight: '600', marginBottom: 2 }}>주소</Text>
+                                        <Text style={{ fontSize: 17, color: '#18181B', fontWeight: '600', lineHeight: 24 }}>{result.address}</Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            {/* 액션 버튼들 */}
+                            <View style={{ marginTop: 14, gap: 10 }}>
+                                {xmlData ? (
+                                    <TouchableOpacity
+                                        style={{ backgroundColor: '#1A237E', borderRadius: 12, paddingVertical: 16, alignItems: 'center', minHeight: 56, flexDirection: 'row', justifyContent: 'center', gap: 8 }}
+                                        onPress={() => setXmlModalVisible(true)}
+                                    >
+                                        <Text style={{ fontSize: 20 }}>📄</Text>
+                                        <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>등기부등본 상세보기</Text>
+                                    </TouchableOpacity>
+                                ) : null}
                                 <TouchableOpacity
-                                    style={{ marginTop: 12, backgroundColor: '#1A237E', borderRadius: 10, paddingVertical: 14, alignItems: 'center', minHeight: 52 }}
-                                    onPress={() => setXmlModalVisible(true)}
+                                    style={[{ backgroundColor: '#16A34A', borderRadius: 12, paddingVertical: 16, alignItems: 'center', minHeight: 56, flexDirection: 'row', justifyContent: 'center', gap: 8 }, isRegisteringProperty && { opacity: 0.6 }]}
+                                    onPress={handleRegisterAsProperty}
+                                    disabled={isRegisteringProperty}
                                 >
-                                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>📄 등기부등본 상세보기</Text>
+                                    {isRegisteringProperty
+                                        ? <ActivityIndicator size="small" color="#fff" />
+                                        : <>
+                                            <Text style={{ fontSize: 20 }}>➕</Text>
+                                            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>매물로 등록 (영업관리)</Text>
+                                        </>
+                                    }
                                 </TouchableOpacity>
-                            ) : null}
-                            {/* 매물로 등록 버튼 */}
-                            <TouchableOpacity
-                                style={[{ marginTop: 10, backgroundColor: '#16A34A', borderRadius: 10, paddingVertical: 14, alignItems: 'center', minHeight: 52 }, isRegisteringProperty && { opacity: 0.6 }]}
-                                onPress={handleRegisterAsProperty}
-                                disabled={isRegisteringProperty}
-                            >
-                                {isRegisteringProperty
-                                    ? <ActivityIndicator size="small" color="#fff" />
-                                    : <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>+ 매물로 등록 (영업관리)</Text>
-                                }
-                            </TouchableOpacity>
+                            </View>
                         </View>
                     ) : null}
 
@@ -3176,7 +3205,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                     maxToRenderPerBatch={10}
                     windowSize={5}
                     renderItem={({ item }) => (
-                        <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
+                        <View style={[styles.listItemContainer, elderlyMode && { minHeight: 96 }]}>
                             <View style={[styles.listItem, elderlyMode && { padding: 18 }]}>
                                 <Text style={[styles.itemName, { fontSize: fs.lg }]} numberOfLines={1}>{item.name}</Text>
                                 <Text style={[styles.itemAddress, { fontSize: fs.md }]} numberOfLines={2}>{item.address}</Text>
@@ -3274,7 +3303,7 @@ const RecentPlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMov
                 maxToRenderPerBatch={10}
                 windowSize={5}
                 renderItem={({ item }) => (
-                    <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
+                    <View style={[styles.listItemContainer, elderlyMode && { minHeight: 96 }]}>
                         <TouchableOpacity style={[styles.listItem, elderlyMode && { padding: 18 }]} onPress={() => {
                             setSelectedMarker(item);
                             setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.001, longitudeDelta: 0.001 });
@@ -3339,7 +3368,7 @@ const FavoritePlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onM
                 maxToRenderPerBatch={10}
                 windowSize={5}
                 renderItem={({ item }) => (
-                    <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
+                    <View style={[styles.listItemContainer, elderlyMode && { minHeight: 96 }]}>
                         <TouchableOpacity style={[styles.listItem, elderlyMode && { padding: 18 }]} onPress={() => {
                             setSelectedMarker(item);
                             setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.001, longitudeDelta: 0.001 });
@@ -6221,7 +6250,7 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
                 maxToRenderPerBatch={10}
                 windowSize={5}
                 renderItem={({ item }) => (
-                    <View style={[styles.listItemContainer, elderlyMode && { minHeight: 80 }]}>
+                    <View style={[styles.listItemContainer, elderlyMode && { minHeight: 96 }]}>
                         <View style={[styles.listItem, elderlyMode && { padding: 18 }]}>
                             <View style={styles.itemHeader}>
                                 <Text style={[styles.itemName, { fontSize: fs.lg }]} accessibilityRole="text">{item.name}</Text>
@@ -7411,6 +7440,37 @@ function AppContent() {
                             </View>
                         )}
 
+                        {/* 줌 +/- 버튼 */}
+                        <View style={[styles.zoomControls, elderlyMode && { bottom: elderlyMode ? 208 : 198 }]}>
+                            <TouchableOpacity
+                                style={styles.zoomButton}
+                                onPress={() => {
+                                    const newDelta = Math.max(region.latitudeDelta * 0.5, 0.0005);
+                                    const newRegion = { ...region, latitudeDelta: newDelta, longitudeDelta: newDelta * (region.longitudeDelta / region.latitudeDelta) };
+                                    setRegion(newRegion);
+                                    mapRef.current?.animateToRegion(newRegion, 300);
+                                }}
+                                accessibilityLabel="지도 확대"
+                                accessibilityRole="button"
+                            >
+                                <Text style={styles.zoomButtonText}>＋</Text>
+                            </TouchableOpacity>
+                            <View style={styles.zoomDivider} />
+                            <TouchableOpacity
+                                style={styles.zoomButton}
+                                onPress={() => {
+                                    const newDelta = Math.min(region.latitudeDelta * 2, 5);
+                                    const newRegion = { ...region, latitudeDelta: newDelta, longitudeDelta: newDelta * (region.longitudeDelta / region.latitudeDelta) };
+                                    setRegion(newRegion);
+                                    mapRef.current?.animateToRegion(newRegion, 300);
+                                }}
+                                accessibilityLabel="지도 축소"
+                                accessibilityRole="button"
+                            >
+                                <Text style={styles.zoomButtonText}>－</Text>
+                            </TouchableOpacity>
+                        </View>
+
                         {/* 현재 위치 버튼 */}
                         <TouchableOpacity
                             style={[
@@ -7422,7 +7482,7 @@ function AppContent() {
                             accessibilityLabel={headingMode ? "나침반 모드 끄기" : "현재 위치로 이동"}
                             accessibilityRole="button"
                         >
-                            <Text style={[styles.gpsButtonText, elderlyMode && { fontSize: 14 }]}>
+                            <Text style={[styles.gpsButtonText, elderlyMode && { fontSize: 16 }]}>
                                 {headingMode ? '🧭' : 'GPS'}
                             </Text>
                         </TouchableOpacity>
@@ -7451,9 +7511,11 @@ function AppContent() {
                                         >
                                             {selectedMarker.address}
                                         </Text>
-                                        <Text style={[styles.bottomPanelCoord, { fontSize: fs.sm }]}>
-                                            {selectedMarker.latitude.toFixed(6)}, {selectedMarker.longitude.toFixed(6)}
-                                        </Text>
+                                        {!elderlyMode && (
+                                            <Text style={[styles.bottomPanelCoord, { fontSize: fs.sm }]}>
+                                                {selectedMarker.latitude.toFixed(6)}, {selectedMarker.longitude.toFixed(6)}
+                                            </Text>
+                                        )}
                                         {/* 주소에 한글이 없으면 한글 주소 조회 버튼 표시 */}
                                         {!/[가-힣]/.test(selectedMarker.address) && (
                                             <TouchableOpacity
@@ -7477,20 +7539,20 @@ function AppContent() {
                                     </View>
                                     <View style={styles.bottomPanelIcons}>
                                         <TouchableOpacity
-                                            style={[styles.bottomPanelIconBtn, elderlyMode && { width: 44, height: 44, borderRadius: 22 }]}
+                                            style={[styles.bottomPanelIconBtn, { width: 48, height: 48, borderRadius: 12 }, elderlyMode && { width: 56, height: 56, borderRadius: 14 }]}
                                             onPress={handleToggleFavorite}
                                             accessibilityLabel={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
                                             accessibilityRole="button"
                                         >
-                                            <Text style={[styles.bottomPanelIconText, { color: isFavorite ? '#FFD700' : '#aaa' }, elderlyMode && { fontSize: 24 }]}>★</Text>
+                                            <Text style={[styles.bottomPanelIconText, { color: isFavorite ? '#FFD700' : '#737373', fontSize: 22 }, elderlyMode && { fontSize: 26 }]}>★</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
-                                            style={[styles.bottomPanelIconBtn, elderlyMode && { width: 44, height: 44, borderRadius: 22 }]}
+                                            style={[styles.bottomPanelIconBtn, { width: 48, height: 48, borderRadius: 12, backgroundColor: '#F0F0F0', borderColor: '#BFBFBF' }, elderlyMode && { width: 56, height: 56, borderRadius: 14 }]}
                                             onPress={() => setSelectedMarker(null)}
                                             accessibilityLabel="선택 해제"
                                             accessibilityRole="button"
                                         >
-                                            <Text style={[styles.bottomPanelIconText, { color: '#999', fontSize: elderlyMode ? 22 : 16 }]}>X</Text>
+                                            <Text style={[styles.bottomPanelIconText, { color: '#525252', fontSize: 18, fontWeight: '700' }, elderlyMode && { fontSize: 22 }]}>✕</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -7500,7 +7562,7 @@ function AppContent() {
                                         style={styles.bottomPanelButtonRoadview}
                                         onPress={() => setStreetViewVisible(true)}
                                     >
-                                        <Text style={styles.bottomPanelButtonText}>실제이미지</Text>
+                                        <Text style={styles.bottomPanelButtonText}>📷 실제이미지</Text>
                                     </TouchableOpacity>
 
                                     {/* 장소관리 버튼 */}
@@ -7510,7 +7572,7 @@ function AppContent() {
                                         accessibilityLabel="장소관리"
                                         accessibilityRole="button"
                                     >
-                                        <Text style={styles.bottomPanelButtonText}>장소관리</Text>
+                                        <Text style={styles.bottomPanelButtonText}>📋 장소관리</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
@@ -7537,7 +7599,7 @@ function AppContent() {
                                         accessibilityRole="button"
                                     >
                                         <Text style={[styles.bottomPanelButtonText, { fontSize: fs.md }]}>
-                                            등기부등본조회
+                                            📑 등기부등본조회
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -7829,6 +7891,37 @@ const styles = StyleSheet.create({
         backgroundColor: '#09090B',
         borderRadius: 2,
         marginTop: 4,
+    },
+    zoomControls: {
+        position: 'absolute',
+        bottom: 172,
+        right: 16,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 5,
+        zIndex: 11,
+        overflow: 'hidden',
+    },
+    zoomButton: {
+        width: 56,
+        height: 52,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    zoomButtonText: {
+        fontSize: 26,
+        fontWeight: '700',
+        color: '#18181B',
+    },
+    zoomDivider: {
+        height: 1,
+        backgroundColor: '#BFBFBF',
     },
     gpsButton: {
         position: 'absolute',
