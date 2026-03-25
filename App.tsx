@@ -3759,9 +3759,24 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
 // ===== 고령자 모드 설정 화면 =====
 
 const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
-    const { elderlyMode, fontSizeLevel, setFontSizeLevel, simpleMode, setSimpleMode } = useMapStore();
+    const { elderlyMode, setElderlyMode, fontSizeLevel, setFontSizeLevel, simpleMode, setSimpleMode } = useMapStore();
     const fs = FONT_SCALE_LEVELS[fontSizeLevel] || FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
+
+    const handleElderlyModeToggle = () => {
+        hapticFeedback();
+        if (elderlyMode) {
+            // 어르신 모드 끄기 → 기본값으로
+            setElderlyMode(false);
+            setFontSizeLevel('normal');
+            setSimpleMode(false);
+        } else {
+            // 어르신 모드 켜기 → 큰 글씨 + 간편 모드
+            setElderlyMode(true);
+            setFontSizeLevel('extraLarge');
+            setSimpleMode(true);
+        }
+    };
 
     const fontSizeLevels: { key: FontSizeLevel; label: string; desc: string }[] = [
         { key: 'normal', label: '보통', desc: '기본 크기' },
@@ -3784,7 +3799,48 @@ const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
                 <View style={{ width: 50 }} />
             </View>
             <ScrollView style={{ flex: 1, padding: 20 }}>
-                {/* 글자 크기 3단계 선택 */}
+                {/* 어르신 모드 토글 (최상단) */}
+                <View style={{
+                    backgroundColor: elderlyMode ? '#E3F2FD' : '#F8F9FA',
+                    borderRadius: 16,
+                    padding: 20,
+                    marginBottom: 20,
+                    borderWidth: elderlyMode ? 2.5 : 1.5,
+                    borderColor: elderlyMode ? '#1565C0' : '#BFBFBF',
+                }}>
+                    <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#18181B', marginBottom: 6 }}>
+                        어르신 모드
+                    </Text>
+                    <Text style={{ fontSize: fs.base, color: '#525252', lineHeight: fs.base * 1.5, marginBottom: 16 }}>
+                        글자가 커지고, 버튼이 커지고,{'\n'}복잡한 기능이 숨겨집니다.
+                    </Text>
+                    <TouchableOpacity
+                        style={{
+                            backgroundColor: elderlyMode ? '#1565C0' : '#E0E0E0',
+                            borderRadius: 12,
+                            paddingVertical: 20,
+                            alignItems: 'center',
+                            minHeight: 68,
+                            justifyContent: 'center',
+                        }}
+                        onPress={handleElderlyModeToggle}
+                        accessibilityLabel={elderlyMode ? '어르신 모드 끄기' : '어르신 모드 켜기'}
+                        accessibilityRole="switch"
+                        accessibilityState={{ checked: elderlyMode }}
+                    >
+                        <Text style={{ color: elderlyMode ? '#fff' : '#333', fontSize: fs.xl, fontWeight: '700' }}>
+                            {elderlyMode ? '어르신 모드 켜짐 (터치하여 끄기)' : '어르신 모드 꺼짐 (터치하여 켜기)'}
+                        </Text>
+                    </TouchableOpacity>
+                    {elderlyMode && (
+                        <Text style={{ fontSize: fs.sm, color: '#1565C0', marginTop: 10, textAlign: 'center' }}>
+                            큰 글씨 + 간편 메뉴 + 큰 버튼이 적용됩니다
+                        </Text>
+                    )}
+                </View>
+
+                {/* 글자 크기 3단계 선택 (어르신 모드 꺼져 있을 때만) */}
+                {!elderlyMode && (
                 <View style={{
                     backgroundColor: '#F8F9FA',
                     borderRadius: 16,
@@ -3794,7 +3850,7 @@ const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
                     borderColor: '#BFBFBF',
                 }}>
                     <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#18181B', marginBottom: 6 }}>
-                        📝 글자 크기
+                        글자 크기
                     </Text>
                     <Text style={{ fontSize: fs.base, color: '#525252', lineHeight: fs.base * 1.5, marginBottom: 18 }}>
                         원하는 글자 크기를 선택하세요
@@ -3841,8 +3897,10 @@ const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
                         })}
                     </View>
                 </View>
+                )}
 
-                {/* 간편 모드 토글 */}
+                {/* 간편 모드 토글 (어르신 모드 꺼져 있을 때만) */}
+                {!elderlyMode && (
                 <View style={{
                     backgroundColor: simpleMode ? '#E8F5E9' : '#F8F9FA',
                     borderRadius: 16,
@@ -3852,10 +3910,10 @@ const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
                     borderColor: simpleMode ? '#2E7D32' : '#BFBFBF',
                 }}>
                     <Text style={{ fontSize: fs['2xl'], fontWeight: '800', color: '#18181B', marginBottom: 6 }}>
-                        🔧 간편 모드
+                        간편 모드
                     </Text>
                     <Text style={{ fontSize: fs.base, color: '#525252', lineHeight: fs.base * 1.5, marginBottom: 16 }}>
-                        복잡한 기능을 숨기고{'\n'}핵심 기능만 표시합니다.
+                        자주 쓰는 기능만 표시합니다.
                     </Text>
                     <TouchableOpacity
                         style={{
@@ -3875,6 +3933,7 @@ const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
                         </Text>
                     </TouchableOpacity>
                 </View>
+                )}
 
                 {/* 미리보기 */}
                 <View style={{
@@ -6284,7 +6343,7 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
                 accessibilityRole="button"
             >
                 <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>
-                    ⚙️ 화면 설정 {simpleMode ? '(간편 모드)' : fontSizeLevel !== 'normal' ? `(글자: ${fontSizeLevel === 'large' ? '크게' : '아주 크게'})` : ''}
+                    ⚙️ 화면 설정 {elderlyMode ? '(어르신 모드)' : simpleMode ? '(간편 모드)' : fontSizeLevel !== 'normal' ? `(글자: ${fontSizeLevel === 'large' ? '크게' : '아주 크게'})` : ''}
                 </Text>
             </TouchableOpacity>
         </ScrollView>
