@@ -37,12 +37,13 @@ interface Props {
     userHeading?: number | null;
     headingMode?: boolean;
     directionLabel?: string;
+    elderlyMode?: boolean;
     onReady?: () => void;
     onLoadProgress?: (stage: 'sdkLoaded' | 'mapReady') => void;
 }
 
-// latitudeDelta < 0.04 ≈ zoom 14+ (지적도 표시 기준)
-const CADASTRAL_MIN_LAT_DELTA = 0.04;
+// latitudeDelta < 0.08 ≈ zoom 13+ (지적도 표시 기준 - 넓은 범위에서도 경계 표시)
+const CADASTRAL_MIN_LAT_DELTA = 0.08;
 
 const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
     const mapRef = useRef<MapView>(null);
@@ -80,6 +81,7 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
             mapType={googleMapType}
             style={[{ flex: 1 }, props.style]}
             initialRegion={props.initialRegion}
+            minZoomLevel={props.elderlyMode ? 15 : 5}
             onRegionChangeComplete={(region) => {
                 setLatDelta(region.latitudeDelta);
                 props.onRegionChangeComplete?.(region);
@@ -93,19 +95,19 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
             showsUserLocation={true}
             showsMyLocationButton={false}
         >
-            {/* VWorld 지적도 WMS 오버레이 - zoom 14+ 에서만 표시 */}
+            {/* VWorld 지적도 WMS 오버레이 - 경계선 강조 표시 */}
             {showCadastral && (
                 <>
                     <WMSTile
-                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bonbun&STYLES=lp_pa_cbnd_bonbun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH=512&HEIGHT=512&FORMAT=image/png&TRANSPARENT=true`}
-                        tileSize={512}
-                        opacity={0.75}
+                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bonbun&STYLES=lp_pa_cbnd_bonbun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true`}
+                        tileSize={256}
+                        opacity={0.95}
                         zIndex={2}
                     />
                     <WMSTile
-                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bubun&STYLES=lp_pa_cbnd_bubun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH=512&HEIGHT=512&FORMAT=image/png&TRANSPARENT=true`}
-                        tileSize={512}
-                        opacity={0.75}
+                        urlTemplate={`https://api.vworld.kr/req/wms?key=${props.vworldApiKey}&SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=lp_pa_cbnd_bubun&STYLES=lp_pa_cbnd_bubun_line&CRS=EPSG:900913&BBOX={minX},{minY},{maxX},{maxY}&WIDTH=256&HEIGHT=256&FORMAT=image/png&TRANSPARENT=true`}
+                        tileSize={256}
+                        opacity={0.95}
                         zIndex={3}
                     />
                 </>
@@ -131,71 +133,81 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
             )}
 
             {/* 커스텀 사용자 위치 마커: 파란 원 + 방향 화살표 + 방위 말풍선 */}
-            {props.userLocation && (
-                <Marker
-                    coordinate={props.userLocation}
-                    anchor={{ x: 0.5, y: 0.4 }}
-                    flat={true}
-                    tracksViewChanges={true}
-                >
-                    <View style={{ alignItems: 'center', width: 80 }}>
-                        {/* 파란 원 + 방향 부채꼴 */}
-                        <View style={{ width: 60, height: 60, alignItems: 'center', justifyContent: 'center' }}>
-                            {/* 방향 부채꼴 (heading이 있을 때만) */}
-                            {props.userHeading != null && (
+            {props.userLocation && (() => {
+                const el = !!props.elderlyMode;
+                const dotOuter = el ? 30 : 22;
+                const dotInner = el ? 22 : 16;
+                const coneL = el ? 18 : 14;
+                const coneB = el ? 28 : 22;
+                const areaSize = el ? 76 : 60;
+                const balloonFs = el ? 13 : 9;
+                const balloonPx = el ? 12 : 8;
+                const balloonPy = el ? 5 : 3;
+
+                return (
+                    <Marker
+                        coordinate={props.userLocation}
+                        anchor={{ x: 0.5, y: 0.4 }}
+                        flat={true}
+                        tracksViewChanges={true}
+                    >
+                        <View style={{ alignItems: 'center', width: areaSize + 40 }}>
+                            {/* 파란 원 + 방향 부채꼴 */}
+                            <View style={{ width: areaSize, height: areaSize, alignItems: 'center', justifyContent: 'center' }}>
+                                {/* 방향 부채꼴 */}
+                                {props.userHeading != null && (
+                                    <View style={{
+                                        position: 'absolute', width: areaSize, height: areaSize,
+                                        alignItems: 'center', justifyContent: 'center',
+                                        transform: [{ rotate: `${props.userHeading}deg` }],
+                                    }}>
+                                        <View style={{
+                                            position: 'absolute', top: 0,
+                                            width: 0, height: 0,
+                                            borderLeftWidth: coneL, borderRightWidth: coneL, borderBottomWidth: coneB,
+                                            borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                            borderBottomColor: 'rgba(66,133,244,0.25)',
+                                        }} />
+                                    </View>
+                                )}
+                                {/* 외곽 흰색 링 + 파란 원 */}
                                 <View style={{
-                                    position: 'absolute', width: 60, height: 60,
+                                    width: dotOuter, height: dotOuter, borderRadius: dotOuter / 2,
+                                    backgroundColor: '#FFFFFF',
                                     alignItems: 'center', justifyContent: 'center',
-                                    transform: [{ rotate: `${props.userHeading}deg` }],
+                                    elevation: 4, shadowColor: '#000', shadowOpacity: 0.25,
+                                    shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
                                 }}>
                                     <View style={{
-                                        position: 'absolute', top: 0,
-                                        width: 0, height: 0,
-                                        borderLeftWidth: 14, borderRightWidth: 14, borderBottomWidth: 22,
-                                        borderLeftColor: 'transparent', borderRightColor: 'transparent',
-                                        borderBottomColor: 'rgba(66,133,244,0.25)',
+                                        width: dotInner, height: dotInner, borderRadius: dotInner / 2,
+                                        backgroundColor: '#4285F4',
                                     }} />
                                 </View>
-                            )}
-                            {/* 외곽 흰색 링 + 파란 원 */}
-                            <View style={{
-                                width: 22, height: 22, borderRadius: 11,
-                                backgroundColor: '#FFFFFF',
-                                alignItems: 'center', justifyContent: 'center',
-                                elevation: 4, shadowColor: '#000', shadowOpacity: 0.25,
-                                shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
-                            }}>
-                                <View style={{
-                                    width: 16, height: 16, borderRadius: 8,
-                                    backgroundColor: '#4285F4',
-                                }} />
                             </View>
-                        </View>
 
-                        {/* 방위 말풍선 */}
-                        {props.directionLabel ? (
-                            <View style={{ alignItems: 'center', marginTop: -2 }}>
-                                {/* 말풍선 꼬리 (위쪽 삼각형) */}
-                                <View style={{
-                                    width: 0, height: 0,
-                                    borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 5,
-                                    borderLeftColor: 'transparent', borderRightColor: 'transparent',
-                                    borderBottomColor: '#18181B',
-                                }} />
-                                {/* 말풍선 본체 */}
-                                <View style={{
-                                    backgroundColor: '#18181B', borderRadius: 6,
-                                    paddingHorizontal: 8, paddingVertical: 3,
-                                }}>
-                                    <Text style={{ color: '#FAFAFA', fontSize: 9, fontWeight: '700' }}>
-                                        현재방향 : {props.directionLabel}
-                                    </Text>
+                            {/* 방위 말풍선 */}
+                            {props.directionLabel ? (
+                                <View style={{ alignItems: 'center', marginTop: -2 }}>
+                                    <View style={{
+                                        width: 0, height: 0,
+                                        borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 5,
+                                        borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                        borderBottomColor: '#18181B',
+                                    }} />
+                                    <View style={{
+                                        backgroundColor: '#18181B', borderRadius: 8,
+                                        paddingHorizontal: balloonPx, paddingVertical: balloonPy,
+                                    }}>
+                                        <Text style={{ color: '#FAFAFA', fontSize: balloonFs, fontWeight: '700' }}>
+                                            현재방향 : {props.directionLabel}
+                                        </Text>
+                                    </View>
                                 </View>
-                            </View>
-                        ) : null}
-                    </View>
-                </Marker>
-            )}
+                            ) : null}
+                        </View>
+                    </Marker>
+                );
+            })()}
         </MapView>
     );
 });

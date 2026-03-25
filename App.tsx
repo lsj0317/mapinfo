@@ -111,21 +111,21 @@ const FONT_SCALE = {
         '4xl': 24,
     },
     elderly: {
-        xs: 14,
-        sm: 15,
-        md: 16,
-        base: 17,
-        lg: 18,
-        xl: 20,
-        '2xl': 22,
-        '3xl': 24,
-        '4xl': 30,
+        xs: 16,
+        sm: 17,
+        md: 18,
+        base: 20,
+        lg: 22,
+        xl: 24,
+        '2xl': 26,
+        '3xl': 28,
+        '4xl': 34,
     },
 };
 
 const TOUCH_SIZE = {
     normal: { minHeight: 36, padding: 8 },
-    elderly: { minHeight: 52, padding: 14 },
+    elderly: { minHeight: 60, padding: 16 },
 };
 
 const COLORS_HIGH_CONTRAST = {
@@ -532,8 +532,8 @@ const useMapStore = create<MapStore>((set, get) => ({
     region: {
         latitude: 37.5665,
         longitude: 126.9780,
-        latitudeDelta: 0.002,
-        longitudeDelta: 0.002,
+        latitudeDelta: 0.001,
+        longitudeDelta: 0.001,
     },
     setRegion: (region) => set({ region }),
 
@@ -3264,7 +3264,7 @@ const RecentPlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMov
                     <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
                         <TouchableOpacity style={[styles.listItem, elderlyMode && { padding: 18 }]} onPress={() => {
                             setSelectedMarker(item);
-                            setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 });
+                            setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.001, longitudeDelta: 0.001 });
                             onMoveToMap();
                         }} accessibilityLabel={`${item.name}, ${item.address}, 지도에서 보기`} accessibilityRole="button">
                             <Text style={[styles.itemName, { fontSize: fs.lg }]}>{item.name}</Text>
@@ -3329,7 +3329,7 @@ const FavoritePlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onM
                     <View style={[styles.listItemContainer, elderlyMode && { minHeight: 72 }]}>
                         <TouchableOpacity style={[styles.listItem, elderlyMode && { padding: 18 }]} onPress={() => {
                             setSelectedMarker(item);
-                            setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 });
+                            setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.001, longitudeDelta: 0.001 });
                             onMoveToMap();
                         }} accessibilityLabel={`${item.name}, ${item.address}, 지도에서 보기`} accessibilityRole="button">
                             <Text style={[styles.itemName, { fontSize: fs.lg }]}>{item.name}</Text>
@@ -6235,7 +6235,7 @@ const BuildingListScreen = ({ onMoveToMap }: { onMoveToMap: () => void }) => {
                                 onPress={async () => {
                                     await saveRecentPlace(item);
                                     setSelectedMarker(item);
-                                    setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 });
+                                    setRegion({ latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.001, longitudeDelta: 0.001 });
                                     onMoveToMap();
                                 }}
                                 accessibilityLabel={`${item.name} 지도에서 보기`}
@@ -6818,16 +6818,16 @@ function AppContent() {
                 if (last) {
                     const coords = { latitude: last.coords.latitude, longitude: last.coords.longitude };
                     setUserLocation(coords);
-                    setRegion({ ...coords, latitudeDelta: 0.002, longitudeDelta: 0.002 });
-                    setTimeout(() => animateActiveMap({ ...coords, latitudeDelta: 0.002, longitudeDelta: 0.002 }), 300);
+                    setRegion({ ...coords, latitudeDelta: 0.001, longitudeDelta: 0.001 });
+                    setTimeout(() => animateActiveMap({ ...coords, latitudeDelta: 0.001, longitudeDelta: 0.001 }), 300);
                 }
 
                 // 2단계: 정확한 현재 위치로 업데이트
                 const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
                 const coords = { latitude: location.coords.latitude, longitude: location.coords.longitude };
                 setUserLocation(coords);
-                setRegion({ ...coords, latitudeDelta: 0.002, longitudeDelta: 0.002 });
-                setTimeout(() => animateActiveMap({ ...coords, latitudeDelta: 0.002, longitudeDelta: 0.002 }), 300);
+                setRegion({ ...coords, latitudeDelta: 0.001, longitudeDelta: 0.001 });
+                setTimeout(() => animateActiveMap({ ...coords, latitudeDelta: 0.001, longitudeDelta: 0.001 }), 300);
             } catch (error) {
                 console.log("Location error:", error);
             }
@@ -7210,6 +7210,7 @@ function AppContent() {
                                 userHeading={userHeading}
                                 headingMode={headingMode}
                                 directionLabel={getDirectionLabel(userHeading)}
+                                elderlyMode={elderlyMode}
                                 onLoadProgress={handleMapLoadProgress}
                             />
                         ) : (
@@ -7228,6 +7229,7 @@ function AppContent() {
                                 userHeading={userHeading}
                                 headingMode={headingMode}
                                 directionLabel={getDirectionLabel(userHeading)}
+                                elderlyMode={elderlyMode}
                                 onLoadProgress={handleMapLoadProgress}
                             />
                         )}
@@ -7313,7 +7315,7 @@ function AppContent() {
                                                 key={item.id}
                                                 style={{ paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: idx < mapSearchResults.length - 1 ? 1 : 0, borderBottomColor: '#F4F4F5' }}
                                                 onPress={() => {
-                                                    const newRegion = { latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 };
+                                                    const newRegion = { latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.001, longitudeDelta: 0.001 };
                                                     setRegion(newRegion);
                                                     animateActiveMap(newRegion, 500);
                                                     setSelectedMarker(item);
@@ -7546,7 +7548,7 @@ function AppContent() {
                     <MoreScreen
                         onMoveToMap={() => setCurrentTab('map')}
                         onMoveToMapWithLocation={(lat, lng, address) => {
-                            setRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.002, longitudeDelta: 0.002 });
+                            setRegion({ latitude: lat, longitude: lng, latitudeDelta: 0.001, longitudeDelta: 0.001 });
                             setSelectedMarker({ id: `place-${Date.now()}`, name: address || '장소관리 장소', address: address || '', latitude: lat, longitude: lng, distance: 0 });
                             setCurrentTab('map');
                         }}

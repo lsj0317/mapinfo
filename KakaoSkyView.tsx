@@ -43,6 +43,7 @@ interface Props {
     userHeading?: number | null;
     headingMode?: boolean;
     directionLabel?: string;
+    elderlyMode?: boolean;
     onLoadProgress?: (stage: 'sdkLoaded' | 'mapReady') => void;
 }
 
@@ -230,27 +231,38 @@ function buildHTML(apiKey: string, region: MapRegion): string {
 
   // 사용자 위치 마커 (파란 원 + 방향 부채꼴 + 방위 말풍선)
   var _userHeading = null;
+  var _elderlyMode = false;
+  function rnSetElderlyMode(mode) { _elderlyMode = mode; }
   function rnSetUserLocation(lat, lng, heading, dirLabel) {
     if (_userMarker) { _userMarker.setMap(null); _userMarker = null; }
     if (lat === null) return;
     _userHeading = (heading != null && heading >= 0) ? heading : _userHeading;
+    var el = _elderlyMode;
+    var area = el ? 76 : 60;
+    var dotO = el ? 30 : 22;
+    var dotI = el ? 22 : 16;
+    var coneL = el ? 18 : 14;
+    var coneB = el ? 28 : 22;
+    var bFs = el ? 13 : 9;
+    var bPx = el ? 12 : 8;
+    var bPy = el ? 5 : 3;
     var arrow = '';
     if (_userHeading != null) {
-      arrow = '<div style="position:absolute;top:0;left:50%;transform:translateX(-50%) rotate(' + _userHeading + 'deg);transform-origin:center 30px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:22px solid rgba(66,133,244,0.25);"></div>';
+      arrow = '<div style="position:absolute;top:0;left:50%;transform:translateX(-50%) rotate(' + _userHeading + 'deg);transform-origin:center ' + (area/2) + 'px;width:0;height:0;border-left:' + coneL + 'px solid transparent;border-right:' + coneL + 'px solid transparent;border-bottom:' + coneB + 'px solid rgba(66,133,244,0.25);"></div>';
     }
     var balloon = '';
     if (dirLabel) {
       balloon = '<div style="display:flex;flex-direction:column;align-items:center;margin-top:-2px;">' +
         '<div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:5px solid #18181B;"></div>' +
-        '<div style="background:#18181B;border-radius:6px;padding:3px 8px;">' +
-          '<span style="color:#FAFAFA;font-size:9px;font-weight:700;white-space:nowrap;">현재방향 : ' + dirLabel + '</span>' +
+        '<div style="background:#18181B;border-radius:8px;padding:' + bPy + 'px ' + bPx + 'px;">' +
+          '<span style="color:#FAFAFA;font-size:' + bFs + 'px;font-weight:700;white-space:nowrap;">현재방향 : ' + dirLabel + '</span>' +
         '</div></div>';
     }
-    var content = '<div style="display:flex;flex-direction:column;align-items:center;width:80px;">' +
-      '<div style="position:relative;width:60px;height:60px;">' +
+    var content = '<div style="display:flex;flex-direction:column;align-items:center;width:' + (area+40) + 'px;">' +
+      '<div style="position:relative;width:' + area + 'px;height:' + area + 'px;">' +
         arrow +
-        '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:11px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">' +
-          '<div style="width:16px;height:16px;border-radius:8px;background:#4285F4;"></div>' +
+        '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:' + dotO + 'px;height:' + dotO + 'px;border-radius:' + (dotO/2) + 'px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">' +
+          '<div style="width:' + dotI + 'px;height:' + dotI + 'px;border-radius:' + (dotI/2) + 'px;background:#4285F4;"></div>' +
         '</div>' +
       '</div>' +
       balloon +
@@ -301,6 +313,13 @@ const KakaoSkyView = forwardRef<KakaoSkyViewHandle, Props>((props, ref) => {
             webviewRef.current?.injectJavaScript(`rnSetSelectedMarker(null, null); true;`);
         }
     }, [props.selectedMarker]);
+
+    // elderly 모드 동기화
+    useEffect(() => {
+        webviewRef.current?.injectJavaScript(
+            `rnSetElderlyMode(${!!props.elderlyMode}); true;`
+        );
+    }, [props.elderlyMode]);
 
     // 사용자 위치 및 방향 동기화
     useEffect(() => {
