@@ -489,6 +489,34 @@ async function saveIROSView(payload: {
     }
 }
 
+// ===== Tilko 잔액 DB 저장/조회 =====
+async function saveTilkoBalanceToDB(balance: number): Promise<void> {
+    try {
+        // upsert: id=1 고정 row에 잔액 저장
+        await supabase.from('tilko_balance').upsert([{
+            id: 1,
+            balance,
+            updated_at: new Date().toISOString(),
+        }]);
+    } catch (e) {
+        console.warn('잔액 DB 저장 실패:', e);
+    }
+}
+
+async function fetchTilkoBalanceFromDB(): Promise<number | null> {
+    try {
+        const { data, error } = await supabase
+            .from('tilko_balance')
+            .select('balance')
+            .eq('id', 1)
+            .single();
+        if (error || !data) return null;
+        return typeof data.balance === 'number' ? data.balance : null;
+    } catch {
+        return null;
+    }
+}
+
 // ===== Zustand 스토어 =====
 
 interface MapStore {
@@ -534,6 +562,8 @@ interface MapStore {
 
     tilkoBalance: number | null;      // Tilko API 포인트 잔액 (null=미조회)
     setTilkoBalance: (balance: number | null) => void;
+    balanceError: boolean;             // 잔액 조회 실패 여부
+    setBalanceError: (error: boolean) => void;
 
     fetchBuildings: (region: Region, page?: number) => Promise<void>;
     saveRecentPlace: (building: Building) => Promise<void>;
@@ -603,6 +633,8 @@ const useMapStore = create<MapStore>((set, get) => ({
 
     tilkoBalance: null,
     setTilkoBalance: (balance) => set({ tilkoBalance: balance }),
+    balanceError: false,
+    setBalanceError: (error) => set({ balanceError: error }),
 
     fetchBuildings: async (currentRegion: Region, page = 1) => {
         const isFirstPage = page === 1;
@@ -763,25 +795,6 @@ const useMapStore = create<MapStore>((set, get) => ({
  * GetPublicKey 응답의 PointBalance 필드 사용 (별도 엔드포인트 없음)
  * @returns 잔액(포인트) or null(오류/미인증)
  */
-async function fetchTilkoBalance(): Promise<number | null> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    try {
-        const res = await fetch(
-            `https://api.tilko.net/api/Auth/GetPublicKey?APIkey=${TILKO_API_KEY}`,
-            { signal: controller.signal }
-        );
-        if (!res.ok) return null;
-        const json = await res.json();
-        const balance = json.PointBalance;
-        if (typeof balance === 'number') return balance;
-        return null;
-    } catch {
-        return null;
-    } finally {
-        clearTimeout(timer);
-    }
-}
 
 /**
  * Tilko/IROS API 응답에서 잔액 부족 여부를 감지한다.
@@ -2653,7 +2666,7 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
             setResult({ owner: info.owner, address: info.address });
             setXmlData(info.xmlData || '');
             setStatus('');
-            if (info.pointBalance !== null) useMapStore.getState().setTilkoBalance(info.pointBalance);
+            if (info.pointBalance !== null) { useMapStore.getState().setTilkoBalance(info.pointBalance); saveTilkoBalanceToDB(info.pointBalance); }
             if (marker) {
                 await saveRegistryCache(marker.latitude, marker.longitude, {
                     pnu: pnu || '',
@@ -2726,7 +2739,7 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
             setResult({ owner: info.owner, address: info.address });
             setXmlData(info.xmlData || '');
             setStatus('');
-            if (info.pointBalance !== null) useMapStore.getState().setTilkoBalance(info.pointBalance);
+            if (info.pointBalance !== null) { useMapStore.getState().setTilkoBalance(info.pointBalance); saveTilkoBalanceToDB(info.pointBalance); }
             await saveRegistryCache(marker.latitude, marker.longitude, {
                 pnu: pnuResult.pnu,
                 jibunAddr: pnuResult.jibunAddr,
@@ -6103,7 +6116,7 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
     onMoveToMapWithLocation: (lat: number, lng: number, address: string) => void;
     onOpenProperty: (propertyId: string) => void;
 }) => {
-    const { elderlyMode, tilkoBalance, setTilkoBalance, fontSizeLevel, simpleMode } = useMapStore();
+    const { elderlyMode, tilkoBalance, setTilkoBalance, fontSizeLevel, simpleMode, balanceError } = useMapStore();
     const fs = FONT_SCALE_LEVELS[fontSizeLevel] || FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
     type MoreView = 'menu' | 'recent' | 'favorites' | 'registry' | 'settings' | 'improvements' | 'stats' | 'notifications' | 'reminders' | 'activity' | 'buildings' | 'places';
@@ -6112,8 +6125,13 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
 
     const handleRefreshBalance = useCallback(async () => {
         setBalanceLoading(true);
-        const bal = await fetchTilkoBalance();
-        if (bal !== null) setTilkoBalance(bal);
+        const bal = await fetchTilkoBalanceFromDB();
+        if (bal !== null) {
+            setTilkoBalance(bal);
+            useMapStore.getState().setBalanceError(false);
+        } else {
+            useMapStore.getState().setBalanceError(true);
+        }
         setBalanceLoading(false);
     }, [setTilkoBalance]);
     if (currentView === 'recent') return <RecentPlacesScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
@@ -6159,7 +6177,9 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
                 <View>
                     <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 2 }}>틸코 API 포인트 잔액</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                        {tilkoBalance !== null ? (
+                        {balanceError ? (
+                            <Text style={{ fontSize: fs.base, color: '#DC2626' }}>잔액조회 중 문제가 생겼습니다</Text>
+                        ) : tilkoBalance !== null ? (
                             <>
                                 <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: tilkoBalance < 5 ? '#DC2626' : '#18181B' }}>
                                     {tilkoBalance.toLocaleString()}
@@ -6924,10 +6944,14 @@ function AppContent() {
         }).catch(() => {});
     }, []);
 
-    // 앱 시작 시 Tilko 잔액 조회 (백그라운드)
+    // 앱 시작 시 DB에서 잔액 조회
     useEffect(() => {
-        fetchTilkoBalance().then(bal => {
-            if (bal !== null) setTilkoBalance(bal);
+        fetchTilkoBalanceFromDB().then(bal => {
+            if (bal !== null) {
+                setTilkoBalance(bal);
+            } else {
+                useMapStore.getState().setBalanceError(true);
+            }
         });
     }, []);
 
@@ -7243,7 +7267,7 @@ function AppContent() {
                                 || uniqueNoList[0];
                             if (!validItem?.uniqueNo) throw new Error('유효한 부동산 고유번호를 찾을 수 없습니다.');
                             const info = await fetchRegistryInfo(validItem.uniqueNo);
-                            if (info.pointBalance !== null) useMapStore.getState().setTilkoBalance(info.pointBalance);
+                            if (info.pointBalance !== null) { useMapStore.getState().setTilkoBalance(info.pointBalance); saveTilkoBalanceToDB(info.pointBalance); }
                             await saveRegistryCache(selectedMarker.latitude, selectedMarker.longitude, {
                                 pnu: pnuResult.pnu,
                                 jibunAddr: pnuResult.jibunAddr,
@@ -7583,7 +7607,7 @@ function AppContent() {
                         {/* 등기 잔액 뱃지 */}
                         {tilkoBalance !== null && (
                             <TouchableOpacity
-                                onPress={() => fetchTilkoBalance().then(bal => { if (bal !== null) setTilkoBalance(bal); })}
+                                onPress={() => fetchTilkoBalanceFromDB().then(bal => { if (bal !== null) setTilkoBalance(bal); })}
                                 style={{
                                     position: 'absolute', bottom: elderlyMode ? 168 : 160, right: 12, zIndex: 20,
                                     backgroundColor: tilkoBalance < 5 ? '#DC2626' : '#18181B',
