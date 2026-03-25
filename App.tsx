@@ -606,20 +606,20 @@ const useMapStore = create<MapStore>((set, get) => ({
     clusteringEnabled: true,
     setClusteringEnabled: (enabled) => set({ clusteringEnabled: enabled }),
 
-    elderlyMode: false,
+    elderlyMode: true,
     setElderlyMode: (mode) => {
         set({ elderlyMode: mode });
         AsyncStorage.setItem(ELDERLY_MODE_KEY, JSON.stringify(mode)).catch(console.warn);
     },
 
-    fontSizeLevel: 'normal' as FontSizeLevel,
+    fontSizeLevel: 'extraLarge' as FontSizeLevel,
     setFontSizeLevel: (level) => {
         set({ fontSizeLevel: level, elderlyMode: level === 'extraLarge' });
         AsyncStorage.setItem(FONT_SIZE_LEVEL_KEY, level).catch(console.warn);
         AsyncStorage.setItem(ELDERLY_MODE_KEY, JSON.stringify(level === 'extraLarge')).catch(console.warn);
     },
 
-    simpleMode: false,
+    simpleMode: true,
     setSimpleMode: (mode) => {
         set({ simpleMode: mode });
         AsyncStorage.setItem(SIMPLE_MODE_KEY, JSON.stringify(mode)).catch(console.warn);
@@ -1959,6 +1959,7 @@ const PropertyDetailModal = ({
     const [editStatus, setEditStatus] = useState<SalesStatus>('미접촉');
     const [editMemo, setEditMemo] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [showDetailFields, setShowDetailFields] = useState(false);
 
     useEffect(() => {
         if (property) {
@@ -2024,32 +2025,18 @@ const PropertyDetailModal = ({
                     </View>
 
                     <ScrollView showsVerticalScrollIndicator={true}>
-                        {/* 등기부등본 정보 섹션 */}
+                        {/* 등기부등본 정보 섹션 - 핵심 정보 */}
                         <View style={styles.propSection}>
-                            <Text style={styles.propSectionTitle}>등기부등본 정보</Text>
+                            <Text style={styles.propSectionTitle}>건물 정보</Text>
 
                             <View style={styles.propRow}>
-                                <Text style={styles.propLabel}>도로명주소</Text>
+                                <Text style={styles.propLabel}>주소</Text>
                                 <Text style={styles.propValue}>{property.road_address || '-'}</Text>
                             </View>
                             <View style={styles.propRow}>
-                                <Text style={styles.propLabel}>지번주소</Text>
-                                <Text style={styles.propValue}>{property.parcel_address || '-'}</Text>
-                            </View>
-                            <View style={styles.propRow}>
-                                <Text style={styles.propLabel}>부동산번호</Text>
-                                <Text style={styles.propValue}>{property.property_id}</Text>
-                            </View>
-                            <View style={styles.propRow}>
-                                <Text style={styles.propLabel}>소유자명</Text>
+                                <Text style={styles.propLabel}>소유자</Text>
                                 <Text style={[styles.propValue, { color: '#1565C0', fontWeight: '700' }]}>
                                     {property.owner_name || '-'}
-                                </Text>
-                            </View>
-                            <View style={styles.propRow}>
-                                <Text style={styles.propLabel}>소유자 주소</Text>
-                                <Text style={[styles.propValue, { color: '#1565C0' }]}>
-                                    {property.owner_address || '-'}
                                 </Text>
                             </View>
                             <View style={styles.propRow}>
@@ -2062,20 +2049,55 @@ const PropertyDetailModal = ({
                                     {property.area ? `${property.area} ㎡` : '-'}
                                 </Text>
                             </View>
-                            <View style={styles.propRow}>
-                                <Text style={styles.propLabel}>층수정보</Text>
-                                <Text style={styles.propValue}>{property.floor_info || '-'}</Text>
-                            </View>
-                            <View style={styles.propRow}>
-                                <Text style={styles.propLabel}>등기일자</Text>
-                                <Text style={styles.propValue}>{property.registration_date || '-'}</Text>
-                            </View>
-                            <View style={styles.propRow}>
-                                <Text style={styles.propLabel}>좌표</Text>
-                                <Text style={styles.propValue}>
-                                    {property.lat.toFixed(6)}, {property.lng.toFixed(6)}
+
+                            {/* 상세 정보 접기/펼치기 */}
+                            <TouchableOpacity
+                                onPress={() => setShowDetailFields(!showDetailFields)}
+                                style={{ paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#E4E4E7', marginTop: 8 }}
+                                accessibilityLabel={showDetailFields ? '상세 정보 접기' : '상세 정보 펼치기'}
+                                accessibilityRole="button"
+                            >
+                                <Text style={{ fontSize: fs.base, color: '#3B82F6', fontWeight: '600' }}>
+                                    {showDetailFields ? '▲ 상세 정보 접기' : '▼ 상세 정보 더보기'}
                                 </Text>
-                            </View>
+                            </TouchableOpacity>
+
+                            {showDetailFields && (
+                                <>
+                                    <View style={styles.propRow}>
+                                        <Text style={styles.propLabel}>지번주소</Text>
+                                        <Text style={styles.propValue}>{property.parcel_address || '-'}</Text>
+                                    </View>
+                                    <View style={styles.propRow}>
+                                        <Text style={styles.propLabel}>소유자 주소</Text>
+                                        <Text style={[styles.propValue, { color: '#1565C0' }]}>
+                                            {property.owner_address || '-'}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.propRow}>
+                                        <Text style={styles.propLabel}>층수정보</Text>
+                                        <Text style={styles.propValue}>{property.floor_info || '-'}</Text>
+                                    </View>
+                                    <View style={styles.propRow}>
+                                        <Text style={styles.propLabel}>등기일자</Text>
+                                        <Text style={styles.propValue}>{property.registration_date || '-'}</Text>
+                                    </View>
+                                    {!elderlyMode && (
+                                        <>
+                                            <View style={styles.propRow}>
+                                                <Text style={styles.propLabel}>부동산번호</Text>
+                                                <Text style={styles.propValue}>{property.property_id}</Text>
+                                            </View>
+                                            <View style={styles.propRow}>
+                                                <Text style={styles.propLabel}>좌표</Text>
+                                                <Text style={styles.propValue}>
+                                                    {property.lat.toFixed(6)}, {property.lng.toFixed(6)}
+                                                </Text>
+                                            </View>
+                                        </>
+                                    )}
+                                </>
+                            )}
                         </View>
 
                         {/* 우편 발송 안내 */}
@@ -6727,7 +6749,7 @@ const OnboardingScreen = ({ onComplete }: { onComplete: () => void }) => {
         {
             emoji: '⚙️',
             title: '글자 크기를 조절할 수 있어요',
-            desc: '더보기 > 화면 설정에서\n글자 크기를 크게 변경할 수 있습니다.',
+            desc: '메뉴 > 화면 설정에서\n글자 크기를 크게 변경할 수 있습니다.',
         },
     ];
 
@@ -7604,8 +7626,8 @@ function AppContent() {
                             )}
                         </View>
 
-                        {/* 등기 잔액 뱃지 */}
-                        {tilkoBalance !== null && (
+                        {/* 등기 잔액 뱃지 - 어르신 모드에서 숨김 */}
+                        {!elderlyMode && tilkoBalance !== null && (
                             <TouchableOpacity
                                 onPress={() => fetchTilkoBalanceFromDB().then(bal => { if (bal !== null) setTilkoBalance(bal); })}
                                 style={{
@@ -7627,8 +7649,8 @@ function AppContent() {
                             </TouchableOpacity>
                         )}
 
-                        {/* 나침반 위젯 (heading 모드일 때 좌상단 표시) */}
-                        {headingMode && userHeading != null && (
+                        {/* 나침반 위젯 - 어르신 모드에서 숨김 */}
+                        {!elderlyMode && headingMode && userHeading != null && (
                             <View style={{
                                 position: 'absolute', top: 16, left: 16, zIndex: 20,
                                 width: 56, height: 56, borderRadius: 28,
@@ -7788,51 +7810,82 @@ function AppContent() {
                                     </View>
                                 </View>
                                 <View style={styles.bottomPanelButtons}>
-                                    {/* 로드뷰 버튼 */}
-                                    <TouchableOpacity
-                                        style={styles.bottomPanelButtonRoadview}
-                                        onPress={() => setStreetViewVisible(true)}
-                                    >
-                                        <Text style={styles.bottomPanelButtonText}>📷 실제이미지</Text>
-                                    </TouchableOpacity>
-
-                                    {/* 장소관리 버튼 */}
-                                    <TouchableOpacity
-                                        style={[styles.bottomPanelButtonRoadview, { backgroundColor: '#27272A' }]}
-                                        onPress={() => setPlaceManagementVisible(true)}
-                                        accessibilityLabel="장소관리"
-                                        accessibilityRole="button"
-                                    >
-                                        <Text style={styles.bottomPanelButtonText}>📋 장소관리</Text>
-                                    </TouchableOpacity>
-
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.bottomPanelButtonRegistry,
-                                            elderlyMode && { paddingVertical: 14, borderRadius: 10 },
-                                            registryRecord ? { backgroundColor: '#27272A' } : null,
-                                        ]}
-                                        onPress={() => {
-                                            if (registryRecord) {
-                                                handleRefreshRegistry();
-                                            } else {
-                                                Alert.alert(
-                                                    "등기부등본 조회",
-                                                    "등기부등본을 조회하시겠습니까?\n(열람비용 발생)",
-                                                    [
-                                                        { text: "취소", style: "cancel" },
-                                                        { text: "조회", onPress: () => setRegistryModalVisible(true) },
-                                                    ]
-                                                );
-                                            }
-                                        }}
-                                        accessibilityLabel="등기부등본 조회"
-                                        accessibilityRole="button"
-                                    >
-                                        <Text style={[styles.bottomPanelButtonText, { fontSize: fs.md }]}>
-                                            📑 등기부등본조회
-                                        </Text>
-                                    </TouchableOpacity>
+                                    {elderlyMode ? (
+                                        <>
+                                            {/* 어르신 모드: 등기부등본 조회 버튼만 크게 */}
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.bottomPanelButtonRegistry,
+                                                    { flex: 1, paddingVertical: 16, borderRadius: 12 },
+                                                    registryRecord ? { backgroundColor: '#27272A' } : null,
+                                                ]}
+                                                onPress={() => {
+                                                    if (registryRecord) {
+                                                        handleRefreshRegistry();
+                                                    } else {
+                                                        Alert.alert(
+                                                            "건물주 정보 조회",
+                                                            "이 건물의 소유자 정보를 조회하시겠습니까?\n(열람비용 발생)",
+                                                            [
+                                                                { text: "취소", style: "cancel" },
+                                                                { text: "조회하기", onPress: () => setRegistryModalVisible(true) },
+                                                            ]
+                                                        );
+                                                    }
+                                                }}
+                                                accessibilityLabel="건물주 정보 조회"
+                                                accessibilityRole="button"
+                                            >
+                                                <Text style={[styles.bottomPanelButtonText, { fontSize: fs.xl, fontWeight: '700' }]}>
+                                                    건물주 정보 조회
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {/* 일반 모드: 3개 버튼 */}
+                                            <TouchableOpacity
+                                                style={styles.bottomPanelButtonRoadview}
+                                                onPress={() => setStreetViewVisible(true)}
+                                            >
+                                                <Text style={styles.bottomPanelButtonText}>실제이미지</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[styles.bottomPanelButtonRoadview, { backgroundColor: '#27272A' }]}
+                                                onPress={() => setPlaceManagementVisible(true)}
+                                                accessibilityLabel="장소관리"
+                                                accessibilityRole="button"
+                                            >
+                                                <Text style={styles.bottomPanelButtonText}>장소관리</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.bottomPanelButtonRegistry,
+                                                    registryRecord ? { backgroundColor: '#27272A' } : null,
+                                                ]}
+                                                onPress={() => {
+                                                    if (registryRecord) {
+                                                        handleRefreshRegistry();
+                                                    } else {
+                                                        Alert.alert(
+                                                            "등기부등본 조회",
+                                                            "등기부등본을 조회하시겠습니까?\n(열람비용 발생)",
+                                                            [
+                                                                { text: "취소", style: "cancel" },
+                                                                { text: "조회", onPress: () => setRegistryModalVisible(true) },
+                                                            ]
+                                                        );
+                                                    }
+                                                }}
+                                                accessibilityLabel="등기부등본 조회"
+                                                accessibilityRole="button"
+                                            >
+                                                <Text style={[styles.bottomPanelButtonText, { fontSize: fs.md }]}>
+                                                    등기부등본조회
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    )}
                                 </View>
                             </View>
                         )}
@@ -7896,7 +7949,7 @@ function AppContent() {
                 {([
                     { id: 'map',  label: '지도',  a11y: '지도 탭' },
                     { id: 'home', label: '홈',    a11y: '홈 탭' },
-                    { id: 'more', label: '더보기', a11y: '더보기 탭' },
+                    { id: 'more', label: '메뉴', a11y: '메뉴 탭' },
                 ] as { id: string; label: string; a11y: string }[]).map(tab => {
                     const active = currentTab === tab.id || (tab.id === 'home' && currentTab === 'homeSearch');
                     return (
