@@ -802,9 +802,9 @@ function detectBalanceError(json: Record<string, unknown>): string | null {
         || combined.includes('이머니') || combined.includes('전자민원');
 
     if (isElectronic) {
-        return '[잔액부족] 전자민원 캐시(전자화폐) 잔액이 부족합니다.\n전자민원 포털에서 충전 후 다시 시도해주세요.';
+        return '[잔액부족] 조회 비용이 부족합니다.\n충전 후 다시 시도해 주세요.';
     }
-    return '[잔액부족] 틸코 API 토큰 잔액이 부족합니다.\n틸코 API 포털(api.tilko.net)에서 충전 후 다시 시도해주세요.';
+    return '[잔액부족] 조회 비용이 부족합니다.\n충전 후 다시 시도해 주세요.';
 }
 
 async function createTilkoEncryption() {
@@ -1227,7 +1227,7 @@ async function fetchUniqueNoByAddress(addr: string): Promise<{ uniqueNo: string;
     if (!searchOk) {
         const balanceMsg = detectBalanceError(searchJson as Record<string, unknown>);
         if (balanceMsg) throw new Error(balanceMsg);
-        throw new Error(searchJson.ErrorLog || searchJson.Message || '고유번호 검색 실패');
+        throw new Error(searchJson.ErrorLog || searchJson.Message || '건물을 찾을 수 없습니다. 다른 주소로 다시 시도해 주세요.');
     }
     const dataList = (searchJson.Result && searchJson.Result.DataList) || searchJson.DataList || [];
     if (dataList.length === 0) throw new Error('해당 주소에 대한 등기 정보를 찾을 수 없습니다.');
@@ -1759,7 +1759,7 @@ const PhotoSection = ({
             {photos.length === 0 ? (
                 <Text style={photoStyles.empty}>현장 사진이 없습니다</Text>
             ) : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={true}>
                     {photos.map((url, idx) => (
                         <TouchableOpacity
                             key={idx}
@@ -1818,11 +1818,11 @@ const NotificationSection = ({ property, salesStatus }: { property: Property; sa
     const handleSchedule = async () => {
         const parsed = new Date(dateInput);
         if (isNaN(parsed.getTime())) {
-            Alert.alert('날짜 오류', 'YYYY-MM-DD 형식으로 입력해 주세요.\n예: 2025-03-15');
+            Alert.alert('날짜를 다시 확인해 주세요', '연도-월-일 순서로 입력해 주세요.\n예: 2025-03-15');
             return;
         }
         if (parsed <= new Date()) {
-            Alert.alert('날짜 오류', '미래 날짜를 입력해 주세요.');
+            Alert.alert('날짜를 다시 확인해 주세요', '오늘 이후의 날짜를 입력해 주세요.');
             return;
         }
         setIsSaving(true);
@@ -1954,6 +1954,26 @@ const PropertyDetailModal = ({
         }
     }, [property]);
 
+    const hasUnsavedChanges = property && (
+        editStatus !== property.sales_status ||
+        (editMemo || '') !== (property.sales_memo || '')
+    );
+
+    const handleClose = () => {
+        if (hasUnsavedChanges) {
+            Alert.alert(
+                '저장하지 않은 변경사항',
+                '수정한 내용이 저장되지 않았습니다.\n그래도 닫으시겠습니까?',
+                [
+                    { text: '계속 수정', style: 'cancel' },
+                    { text: '저장 안 함', style: 'destructive', onPress: onClose },
+                ],
+            );
+        } else {
+            onClose();
+        }
+    };
+
     const handleSave = async () => {
         if (!property) return;
         setIsSaving(true);
@@ -1975,7 +1995,7 @@ const PropertyDetailModal = ({
     const statusColor = SALES_STATUS_COLORS[property.sales_status] || '#9E9E9E';
 
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
             <View style={styles.modalOverlay}>
                 <View style={[styles.modalContent, { maxHeight: Dimensions.get('window').height * 0.88 }]}>
                     {/* 헤더 */}
@@ -1990,7 +2010,7 @@ const PropertyDetailModal = ({
                         </View>
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false}>
+                    <ScrollView showsVerticalScrollIndicator={true}>
                         {/* 등기부등본 정보 섹션 */}
                         <View style={styles.propSection}>
                             <Text style={styles.propSectionTitle}>등기부등본 정보</Text>
@@ -2114,7 +2134,7 @@ const PropertyDetailModal = ({
                     <View style={styles.propModalButtons}>
                         <TouchableOpacity
                             style={[styles.propCancelButton, elderlyMode && { paddingVertical: 18 }]}
-                            onPress={onClose}
+                            onPress={handleClose}
                             accessibilityLabel="닫기"
                             accessibilityRole="button"
                         >
@@ -3097,7 +3117,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                 })));
             }
         } catch {
-            Alert.alert('오류', '검색 중 문제가 발생했습니다.');
+            Alert.alert('검색 실패', '검색 중 문제가 생겼습니다.\n잠시 후 다시 시도해 주세요.');
         } finally {
             setIsLoading(false);
         }
@@ -3123,7 +3143,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                     longitude: coords.lng,
                 });
             } else {
-                Alert.alert('좌표 변환 실패', '해당 주소의 좌표를 찾을 수 없습니다.\n직접 지도에서 검색해 주세요.');
+                Alert.alert('주소를 찾을 수 없습니다', '입력한 주소의 위치를 찾지 못했습니다.\n다른 주소로 다시 시도하거나,\n지도에서 직접 찾아주세요.');
             }
         } catch {
             Alert.alert('오류', '주소 처리 중 문제가 발생했습니다.');
@@ -6130,8 +6150,6 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
             <View style={{ height: 1, backgroundColor: '#E4E4E7', marginVertical: 4 }} />
             {/* 틸코 잔액 카드 - 간편 모드에서 숨김 */}
             {!simpleMode && <View style={{
-            {/* 등기 잔액 카드 */}
-            <View style={{
                 backgroundColor: tilkoBalance !== null && tilkoBalance < 5 ? '#FEF2F2' : '#F4F4F5',
                 borderRadius: 12, marginHorizontal: 16, marginBottom: 8,
                 padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
