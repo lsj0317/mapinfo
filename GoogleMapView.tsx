@@ -34,6 +34,7 @@ interface Props {
     selectedMarker?: { latitude: number; longitude: number } | null;
     markers?: MapMarkerItem[];
     userLocation?: { latitude: number; longitude: number } | null;
+    userHeading?: number | null;
     onReady?: () => void;
     onLoadProgress?: (stage: 'sdkLoaded' | 'mapReady') => void;
 }
@@ -112,14 +113,44 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
                 />
             )}
 
-            {/* 커스텀 사용자 위치 마커 */}
+            {/* 커스텀 사용자 위치 마커: 파란 원 + 방향 화살표 */}
             {props.userLocation && (
                 <Marker
                     coordinate={props.userLocation}
                     anchor={{ x: 0.5, y: 0.5 }}
+                    flat={true}
+                    tracksViewChanges={true}
                 >
-                    <View style={{ backgroundColor: '#18181B', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1.5, borderColor: '#FAFAFA' }}>
-                        <Text style={{ color: '#FAFAFA', fontSize: 11, fontWeight: '600' }}>내위치</Text>
+                    <View style={{ width: 60, height: 60, alignItems: 'center', justifyContent: 'center' }}>
+                        {/* 방향 부채꼴 (heading이 있을 때만) */}
+                        {props.userHeading != null && (
+                            <View style={{
+                                position: 'absolute', width: 60, height: 60,
+                                alignItems: 'center', justifyContent: 'center',
+                                transform: [{ rotate: `${props.userHeading}deg` }],
+                            }}>
+                                <View style={{
+                                    position: 'absolute', top: 0,
+                                    width: 0, height: 0,
+                                    borderLeftWidth: 14, borderRightWidth: 14, borderBottomWidth: 22,
+                                    borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                    borderBottomColor: 'rgba(66,133,244,0.25)',
+                                }} />
+                            </View>
+                        )}
+                        {/* 외곽 흰색 링 + 파란 원 */}
+                        <View style={{
+                            width: 22, height: 22, borderRadius: 11,
+                            backgroundColor: '#FFFFFF',
+                            alignItems: 'center', justifyContent: 'center',
+                            elevation: 4, shadowColor: '#000', shadowOpacity: 0.25,
+                            shadowOffset: { width: 0, height: 2 }, shadowRadius: 4,
+                        }}>
+                            <View style={{
+                                width: 16, height: 16, borderRadius: 8,
+                                backgroundColor: '#4285F4',
+                            }} />
+                        </View>
                     </View>
                 </Marker>
             )}

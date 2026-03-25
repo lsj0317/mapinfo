@@ -6711,8 +6711,9 @@ function AppContent() {
     const [mapSearchResults, setMapSearchResults] = useState<Building[]>([]);
     const [mapSearchLoading, setMapSearchLoading] = useState(false);
 
-    // 사용자 위치
+    // 사용자 위치 및 방향
     const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [userHeading, setUserHeading] = useState<number | null>(null);
     const lastRecordedPosRef = useRef<{ lat: number; lng: number } | null>(null);
 
     // 오프라인 감지 + 큐
@@ -6824,18 +6825,26 @@ function AppContent() {
         }
     }, [currentTab, region]);
 
-    // GPS 와처: 150m 이동 시 영업 동선 기록
+    // GPS 와처: 실시간 위치 추적 (부드러운 이동) + 150m 이동 시 영업 동선 기록
     useEffect(() => {
-        let sub: Location.LocationSubscription | null = null;
+        let locationSub: Location.LocationSubscription | null = null;
+        let headingSub: Location.LocationSubscription | null = null;
         (async () => {
             try {
                 const { status } = await Location.requestForegroundPermissionsAsync();
                 if (status !== 'granted') return;
-                sub = await Location.watchPositionAsync(
-                    { accuracy: Location.Accuracy.Balanced, timeInterval: 30000, distanceInterval: 150 },
+
+                // 위치 추적: 2초 / 5m 간격으로 부드럽게 업데이트
+                locationSub = await Location.watchPositionAsync(
+                    { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 5 },
                     (loc) => {
                         const { latitude: lat, longitude: lng } = loc.coords;
                         setUserLocation({ latitude: lat, longitude: lng });
+                        // 방향값이 위치에 포함되어 있으면 사용
+                        if (loc.coords.heading != null && loc.coords.heading >= 0) {
+                            setUserHeading(loc.coords.heading);
+                        }
+                        // 150m 이상 이동 시 영업 동선 기록
                         if (!lastRecordedPosRef.current ||
                             haversineDistance(lastRecordedPosRef.current.lat, lastRecordedPosRef.current.lng, lat, lng) >= 150) {
                             lastRecordedPosRef.current = { lat, lng };
@@ -6843,9 +6852,21 @@ function AppContent() {
                         }
                     }
                 );
+
+                // 나침반(heading) 구독: 디바이스 방향 실시간 추적
+                headingSub = await Location.watchHeadingAsync((headingData) => {
+                    if (headingData.trueHeading >= 0) {
+                        setUserHeading(headingData.trueHeading);
+                    } else if (headingData.magHeading >= 0) {
+                        setUserHeading(headingData.magHeading);
+                    }
+                });
             } catch (_) {}
         })();
-        return () => { sub?.remove(); };
+        return () => {
+            locationSub?.remove();
+            headingSub?.remove();
+        };
     }, []);
 
     // 로컬 캐시에서 lat/lng 범위로 등기 기록 조회 (DB 호출 없음)
@@ -7154,6 +7175,7 @@ function AppContent() {
                                 selectedMarker={selectedMarker}
                                 markers={allMarkersForMap}
                                 userLocation={userLocation}
+                                userHeading={userHeading}
                                 onLoadProgress={handleMapLoadProgress}
                             />
                         ) : (
@@ -7169,6 +7191,7 @@ function AppContent() {
                                 selectedMarker={selectedMarker}
                                 markers={allMarkersForMap}
                                 userLocation={userLocation}
+                                userHeading={userHeading}
                                 onLoadProgress={handleMapLoadProgress}
                             />
                         )}

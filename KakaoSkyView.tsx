@@ -40,6 +40,7 @@ interface Props {
     markers?: SkyMarkerItem[];
     selectedMarker?: { latitude: number; longitude: number } | null;
     userLocation?: { latitude: number; longitude: number } | null;
+    userHeading?: number | null;
     onLoadProgress?: (stage: 'sdkLoaded' | 'mapReady') => void;
 }
 
@@ -225,11 +226,21 @@ function buildHTML(apiKey: string, region: MapRegion): string {
     });
   }
 
-  // 사용자 위치 마커
-  function rnSetUserLocation(lat, lng) {
+  // 사용자 위치 마커 (파란 원 + 방향 부채꼴)
+  var _userHeading = null;
+  function rnSetUserLocation(lat, lng, heading) {
     if (_userMarker) { _userMarker.setMap(null); _userMarker = null; }
     if (lat === null) return;
-    var content = '<div style="background:#18181B;color:#fff;font-size:10px;font-weight:700;padding:3px 7px;border-radius:4px;border:1.5px solid #FAFAFA;">내위치</div>';
+    _userHeading = (heading != null && heading >= 0) ? heading : _userHeading;
+    var arrow = '';
+    if (_userHeading != null) {
+      arrow = '<div style="position:absolute;top:0;left:50%;transform:translateX(-50%) rotate(' + _userHeading + 'deg);transform-origin:center 30px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:22px solid rgba(66,133,244,0.25);"></div>';
+    }
+    var content = '<div style="position:relative;width:60px;height:60px;">' +
+      arrow +
+      '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:11px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">' +
+        '<div style="width:16px;height:16px;border-radius:8px;background:#4285F4;"></div>' +
+      '</div></div>';
     _userMarker = new kakao.maps.CustomOverlay({
       map: _map, position: new kakao.maps.LatLng(lat, lng),
       content: content, yAnchor: 0.5, xAnchor: 0.5, zIndex: 15
@@ -277,14 +288,15 @@ const KakaoSkyView = forwardRef<KakaoSkyViewHandle, Props>((props, ref) => {
         }
     }, [props.selectedMarker]);
 
-    // 사용자 위치 동기화
+    // 사용자 위치 및 방향 동기화
     useEffect(() => {
         if (props.userLocation) {
+            const heading = props.userHeading != null ? props.userHeading : 'null';
             webviewRef.current?.injectJavaScript(
-                `rnSetUserLocation(${props.userLocation.latitude}, ${props.userLocation.longitude}); true;`
+                `rnSetUserLocation(${props.userLocation.latitude}, ${props.userLocation.longitude}, ${heading}); true;`
             );
         }
-    }, [props.userLocation]);
+    }, [props.userLocation, props.userHeading]);
 
     // WebView → RN 메시지 처리
     const handleMessage = useCallback((event: WebViewMessageEvent) => {
