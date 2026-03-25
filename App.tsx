@@ -6714,7 +6714,22 @@ function AppContent() {
     // 사용자 위치 및 방향
     const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
     const [userHeading, setUserHeading] = useState<number | null>(null);
+    const [headingMode, setHeadingMode] = useState(false); // GPS 버튼 2번째 탭 → 나침반 모드
     const lastRecordedPosRef = useRef<{ lat: number; lng: number } | null>(null);
+
+    // heading → 방위 텍스트 변환
+    const getDirectionLabel = (heading: number | null): string => {
+        if (heading == null) return '';
+        const h = ((heading % 360) + 360) % 360;
+        if (h >= 337.5 || h < 22.5) return '북';
+        if (h >= 22.5 && h < 67.5) return '북동';
+        if (h >= 67.5 && h < 112.5) return '동';
+        if (h >= 112.5 && h < 157.5) return '남동';
+        if (h >= 157.5 && h < 202.5) return '남';
+        if (h >= 202.5 && h < 247.5) return '남서';
+        if (h >= 247.5 && h < 292.5) return '서';
+        return '북서';
+    };
 
     // 오프라인 감지 + 큐
     const isOnline = useOnlineStatus();
@@ -6925,9 +6940,26 @@ function AppContent() {
     }, [selectedMarker]);
 
     const handleGpsPress = useCallback(async () => {
+        // 이미 heading 모드면 → 끄기
+        if (headingMode) {
+            setHeadingMode(false);
+            return;
+        }
+
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') return;
+
+            // 이미 내 위치에 있으면 → heading 모드 ON
+            if (userLocation && region) {
+                const dist = Math.abs(region.latitude - userLocation.latitude) + Math.abs(region.longitude - userLocation.longitude);
+                if (dist < 0.001) {
+                    setHeadingMode(true);
+                    return;
+                }
+            }
+
+            // 내 위치로 이동
             setLoadingMessage("현재 위치를 찾는 중입니다...");
             setIsMapLoading(true);
             const currentLocation = await Location.getCurrentPositionAsync({});
@@ -6948,7 +6980,7 @@ function AppContent() {
             setIsMapLoading(false);
             Alert.alert("오류", "위치 정보를 가져올 수 없습니다.");
         }
-    }, []);
+    }, [headingMode, userLocation, region]);
 
     const handleRefreshRegistry = () => {
         Alert.alert(
@@ -7176,6 +7208,8 @@ function AppContent() {
                                 markers={allMarkersForMap}
                                 userLocation={userLocation}
                                 userHeading={userHeading}
+                                headingMode={headingMode}
+                                directionLabel={getDirectionLabel(userHeading)}
                                 onLoadProgress={handleMapLoadProgress}
                             />
                         ) : (
@@ -7192,6 +7226,8 @@ function AppContent() {
                                 markers={allMarkersForMap}
                                 userLocation={userLocation}
                                 userHeading={userHeading}
+                                headingMode={headingMode}
+                                directionLabel={getDirectionLabel(userHeading)}
                                 onLoadProgress={handleMapLoadProgress}
                             />
                         )}
@@ -7318,14 +7354,62 @@ function AppContent() {
                             </TouchableOpacity>
                         )}
 
+                        {/* 나침반 위젯 (heading 모드일 때 좌상단 표시) */}
+                        {headingMode && userHeading != null && (
+                            <View style={{
+                                position: 'absolute', top: 16, left: 16, zIndex: 20,
+                                width: 56, height: 56, borderRadius: 28,
+                                backgroundColor: 'rgba(255,255,255,0.95)',
+                                alignItems: 'center', justifyContent: 'center',
+                                elevation: 6, shadowColor: '#000', shadowOpacity: 0.15,
+                                shadowOffset: { width: 0, height: 2 }, shadowRadius: 6,
+                                borderWidth: 1, borderColor: '#E4E4E7',
+                            }}>
+                                {/* 회전하는 나침반 바늘 */}
+                                <View style={{
+                                    width: 44, height: 44,
+                                    alignItems: 'center', justifyContent: 'center',
+                                    transform: [{ rotate: `${-userHeading}deg` }],
+                                }}>
+                                    {/* 북쪽 (빨간) */}
+                                    <View style={{
+                                        position: 'absolute', top: 2,
+                                        width: 0, height: 0,
+                                        borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 16,
+                                        borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                        borderBottomColor: '#EF4444',
+                                    }} />
+                                    {/* 남쪽 (회색) */}
+                                    <View style={{
+                                        position: 'absolute', bottom: 2,
+                                        width: 0, height: 0,
+                                        borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 16,
+                                        borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                                        borderTopColor: '#A1A1AA',
+                                    }} />
+                                    {/* N 글자 */}
+                                    <Text style={{
+                                        position: 'absolute', top: -1,
+                                        fontSize: 7, fontWeight: '900', color: '#EF4444',
+                                    }}>N</Text>
+                                </View>
+                            </View>
+                        )}
+
                         {/* 현재 위치 버튼 */}
                         <TouchableOpacity
-                            style={[styles.gpsButton, elderlyMode && { width: 60, height: 60, borderRadius: 30, bottom: elderlyMode ? 140 : 130 }]}
+                            style={[
+                                styles.gpsButton,
+                                headingMode && { backgroundColor: '#4285F4', borderColor: '#3B78DB' },
+                                elderlyMode && { width: 60, height: 60, borderRadius: 30, bottom: elderlyMode ? 140 : 130 },
+                            ]}
                             onPress={handleGpsPress}
-                            accessibilityLabel="현재 위치로 이동"
+                            accessibilityLabel={headingMode ? "나침반 모드 끄기" : "현재 위치로 이동"}
                             accessibilityRole="button"
                         >
-                            <Text style={[styles.gpsButtonText, elderlyMode && { fontSize: 14 }]}>GPS</Text>
+                            <Text style={[styles.gpsButtonText, elderlyMode && { fontSize: 14 }]}>
+                                {headingMode ? '🧭' : 'GPS'}
+                            </Text>
                         </TouchableOpacity>
 
                         <LoadingOverlay visible={isMapLoading} message={loadingMessage} />

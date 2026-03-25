@@ -41,6 +41,8 @@ interface Props {
     selectedMarker?: { latitude: number; longitude: number } | null;
     userLocation?: { latitude: number; longitude: number } | null;
     userHeading?: number | null;
+    headingMode?: boolean;
+    directionLabel?: string;
     onLoadProgress?: (stage: 'sdkLoaded' | 'mapReady') => void;
 }
 
@@ -226,9 +228,9 @@ function buildHTML(apiKey: string, region: MapRegion): string {
     });
   }
 
-  // 사용자 위치 마커 (파란 원 + 방향 부채꼴)
+  // 사용자 위치 마커 (파란 원 + 방향 부채꼴 + 방위 말풍선)
   var _userHeading = null;
-  function rnSetUserLocation(lat, lng, heading) {
+  function rnSetUserLocation(lat, lng, heading, dirLabel) {
     if (_userMarker) { _userMarker.setMap(null); _userMarker = null; }
     if (lat === null) return;
     _userHeading = (heading != null && heading >= 0) ? heading : _userHeading;
@@ -236,14 +238,26 @@ function buildHTML(apiKey: string, region: MapRegion): string {
     if (_userHeading != null) {
       arrow = '<div style="position:absolute;top:0;left:50%;transform:translateX(-50%) rotate(' + _userHeading + 'deg);transform-origin:center 30px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:22px solid rgba(66,133,244,0.25);"></div>';
     }
-    var content = '<div style="position:relative;width:60px;height:60px;">' +
-      arrow +
-      '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:11px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">' +
-        '<div style="width:16px;height:16px;border-radius:8px;background:#4285F4;"></div>' +
-      '</div></div>';
+    var balloon = '';
+    if (dirLabel) {
+      balloon = '<div style="display:flex;flex-direction:column;align-items:center;margin-top:-2px;">' +
+        '<div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:5px solid #18181B;"></div>' +
+        '<div style="background:#18181B;border-radius:6px;padding:3px 8px;">' +
+          '<span style="color:#FAFAFA;font-size:9px;font-weight:700;white-space:nowrap;">현재방향 : ' + dirLabel + '</span>' +
+        '</div></div>';
+    }
+    var content = '<div style="display:flex;flex-direction:column;align-items:center;width:80px;">' +
+      '<div style="position:relative;width:60px;height:60px;">' +
+        arrow +
+        '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:11px;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;">' +
+          '<div style="width:16px;height:16px;border-radius:8px;background:#4285F4;"></div>' +
+        '</div>' +
+      '</div>' +
+      balloon +
+    '</div>';
     _userMarker = new kakao.maps.CustomOverlay({
       map: _map, position: new kakao.maps.LatLng(lat, lng),
-      content: content, yAnchor: 0.5, xAnchor: 0.5, zIndex: 15
+      content: content, yAnchor: 0.45, xAnchor: 0.5, zIndex: 15
     });
   }
 </script>
@@ -292,11 +306,12 @@ const KakaoSkyView = forwardRef<KakaoSkyViewHandle, Props>((props, ref) => {
     useEffect(() => {
         if (props.userLocation) {
             const heading = props.userHeading != null ? props.userHeading : 'null';
+            const dirLabel = props.directionLabel ? `'${props.directionLabel}'` : 'null';
             webviewRef.current?.injectJavaScript(
-                `rnSetUserLocation(${props.userLocation.latitude}, ${props.userLocation.longitude}, ${heading}); true;`
+                `rnSetUserLocation(${props.userLocation.latitude}, ${props.userLocation.longitude}, ${heading}, ${dirLabel}); true;`
             );
         }
-    }, [props.userLocation, props.userHeading]);
+    }, [props.userLocation, props.userHeading, props.directionLabel]);
 
     // WebView → RN 메시지 처리
     const handleMessage = useCallback((event: WebViewMessageEvent) => {
