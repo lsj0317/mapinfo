@@ -1433,7 +1433,7 @@ const StreetViewModal = React.memo(({
                         {title || '실제이미지'}
                     </Text>
                     <TouchableOpacity onPress={onClose} style={svStyles.closeBtn}>
-                        <Text style={svStyles.closeTxt}>닫기</Text>
+                        <Text style={svStyles.closeTxt}>✕ 닫기</Text>
                     </TouchableOpacity>
                 </View>
                 {!googleKey ? (
@@ -1476,9 +1476,9 @@ const svStyles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#27272A',
     },
-    title: { color: '#FAFAFA', fontSize: 14, fontWeight: '600', flex: 1, marginRight: 12, letterSpacing: -0.3 },
-    closeBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#27272A', borderRadius: 6 },
-    closeTxt: { color: '#FAFAFA', fontSize: 13, fontWeight: '500' },
+    title: { color: '#FAFAFA', fontSize: 17, fontWeight: '700', flex: 1, marginRight: 12, letterSpacing: -0.3 },
+    closeBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#27272A', borderRadius: 8, minHeight: 48 },
+    closeTxt: { color: '#FAFAFA', fontSize: 16, fontWeight: '600' },
     loading: { flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' },
     noKey: { flex: 1, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center', padding: 32 },
     noKeyText: { color: '#fff', fontSize: 14, lineHeight: 24, textAlign: 'center' },
@@ -2081,7 +2081,7 @@ const PropertyDetailModal = ({
                             accessibilityLabel="닫기"
                             accessibilityRole="button"
                         >
-                            <Text style={[styles.propCancelButtonText, { fontSize: fs.lg }]}>닫기</Text>
+                            <Text style={[styles.propCancelButtonText, { fontSize: fs.lg }]}>✕ 닫기</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.propSaveButton, elderlyMode && { paddingVertical: 18 }, isSaving && { opacity: 0.6 }]}
@@ -2235,8 +2235,9 @@ const RegistryXmlModal: React.FC<{ visible: boolean; onClose: () => void; xmlDat
                 <View style={[rxs.container, { maxHeight: H * 0.93 }]}>
                     <View style={rxs.titleBar}>
                         <Text style={rxs.titleTxt}>등기사항전부증명서</Text>
-                        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕</Text>
+                        <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 10, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, minHeight: 44 }}>
+                            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>✕ </Text>
+                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>닫기</Text>
                         </TouchableOpacity>
                     </View>
                     <ScrollView style={{ backgroundColor: '#F0F0EB' }} showsVerticalScrollIndicator>
@@ -2365,7 +2366,7 @@ const RegistryXmlModal: React.FC<{ visible: boolean; onClose: () => void; xmlDat
                         <View style={{ height: 16 }} />
                     </ScrollView>
                     <TouchableOpacity style={rxs.closeBtn} onPress={onClose}>
-                        <Text style={rxs.closeBtnTxt}>닫기</Text>
+                        <Text style={rxs.closeBtnTxt}>✕ 닫기</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -2397,8 +2398,8 @@ const rxs = StyleSheet.create({
     footerTxt: { fontSize: 14, color: '#555', textAlign: 'center' },
     footerDate: { fontSize: 15, fontWeight: '600', color: '#333', marginTop: 4 },
     footerJuris: { fontSize: 15, color: '#333', marginTop: 2 },
-    closeBtn: { backgroundColor: '#37474F', margin: 12, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
-    closeBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
+    closeBtn: { backgroundColor: '#37474F', margin: 12, borderRadius: 10, paddingVertical: 16, alignItems: 'center', minHeight: 56 },
+    closeBtnTxt: { color: '#fff', fontSize: 18, fontWeight: '700' },
 });
 
 // ===== 토지이용계획 패널 컴포넌트 =====
@@ -2750,7 +2751,10 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
     };
 
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={xmlModalVisible ? () => setXmlModalVisible(false) : handleClose}>
+            {xmlModalVisible && xmlData ? (
+                <RegistryXmlModal visible={true} onClose={() => setXmlModalVisible(false)} xmlData={xmlData} />
+            ) : (
             <View style={styles.modalOverlay}>
                 <View style={styles.modalContent}>
                     <Text style={styles.modalTitle}>등기정보 조회 (Tilko API)</Text>
@@ -2832,21 +2836,21 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                             <Text style={styles.modalResultValue}>{result.address}</Text>
                             {xmlData ? (
                                 <TouchableOpacity
-                                    style={{ marginTop: 12, backgroundColor: '#1A237E', borderRadius: 6, paddingVertical: 10, alignItems: 'center' }}
+                                    style={{ marginTop: 12, backgroundColor: '#1A237E', borderRadius: 10, paddingVertical: 14, alignItems: 'center', minHeight: 52 }}
                                     onPress={() => setXmlModalVisible(true)}
                                 >
-                                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>📄 XML 정보 보기 (등기부등본)</Text>
+                                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>📄 등기부등본 상세보기</Text>
                                 </TouchableOpacity>
                             ) : null}
                             {/* 매물로 등록 버튼 */}
                             <TouchableOpacity
-                                style={[{ marginTop: 10, backgroundColor: '#16A34A', borderRadius: 6, paddingVertical: 11, alignItems: 'center' }, isRegisteringProperty && { opacity: 0.6 }]}
+                                style={[{ marginTop: 10, backgroundColor: '#16A34A', borderRadius: 10, paddingVertical: 14, alignItems: 'center', minHeight: 52 }, isRegisteringProperty && { opacity: 0.6 }]}
                                 onPress={handleRegisterAsProperty}
                                 disabled={isRegisteringProperty}
                             >
                                 {isRegisteringProperty
                                     ? <ActivityIndicator size="small" color="#fff" />
-                                    : <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>+ 매물로 등록 (영업관리)</Text>
+                                    : <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>+ 매물로 등록 (영업관리)</Text>
                                 }
                             </TouchableOpacity>
                         </View>
@@ -2856,13 +2860,12 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                     {result && (
                         <LandUsePanel info={landUseInfo} isLoading={isLoadingLandUse} />
                     )}
-                    <RegistryXmlModal visible={xmlModalVisible} onClose={() => setXmlModalVisible(false)} xmlData={xmlData} />
-
                     <TouchableOpacity style={styles.modalCloseButton} onPress={handleClose}>
-                        <Text style={styles.modalCloseButtonText}>닫기</Text>
+                        <Text style={styles.modalCloseButtonText}>✕ 닫기</Text>
                     </TouchableOpacity>
                 </View>
             </View>
+            )}
         </Modal>
     );
 };
@@ -3087,7 +3090,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
             {/* 헤더 */}
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>장소 검색</Text>
                 <View style={{ width: 50 }} />
@@ -3214,7 +3217,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                             onPress={() => setDaumModalVisible(false)}
                             style={styles.daumModalClose}
                         >
-                            <Text style={styles.daumModalCloseText}>닫기</Text>
+                            <Text style={styles.daumModalCloseText}>✕ 닫기</Text>
                         </TouchableOpacity>
                     </View>
                     <WebView
@@ -3255,7 +3258,7 @@ const RecentPlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMov
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>최근 본 장소</Text>
                 <View style={{ width: 50 }} />
@@ -3320,7 +3323,7 @@ const FavoritePlacesScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onM
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>즐겨 찾는 장소</Text>
                 <View style={{ width: 50 }} />
@@ -3393,7 +3396,7 @@ const RegistryDetailScreen = ({ record, onBack, onSoftDelete }: {
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>등기 열람 상세</Text>
                 <View style={{ width: 50 }} />
@@ -3541,7 +3544,7 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>등기 열람 이력</Text>
                 <TouchableOpacity
@@ -3648,7 +3651,7 @@ const ElderlyModeScreen = ({ onBack }: { onBack: () => void }) => {
                     accessibilityLabel="뒤로 가기"
                     accessibilityRole="button"
                 >
-                    <Text style={[styles.backButtonText, elderlyMode && { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, elderlyMode && { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, elderlyMode && { fontSize: fs['3xl'] }]}>화면 설정</Text>
                 <View style={{ width: 50 }} />
@@ -3863,8 +3866,9 @@ const PlaceManagementModal = ({ visible, onClose, latitude, longitude, address }
                 <View style={{ backgroundColor: '#FAFAFA', borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: '80%' }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
                         <Text style={{ flex: 1, fontSize: fs.lg, fontWeight: '700', color: '#222' }}>장소관리</Text>
-                        <TouchableOpacity onPress={onClose}>
-                            <Text style={{ fontSize: 20, color: '#999' }}>X</Text>
+                        <TouchableOpacity onPress={onClose} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#F4F4F5', borderRadius: 8, borderWidth: 1, borderColor: '#BFBFBF', minHeight: 44 }}>
+                            <Text style={{ fontSize: 18, color: '#333', fontWeight: '700' }}>✕ </Text>
+                            <Text style={{ fontSize: 15, color: '#333', fontWeight: '600' }}>닫기</Text>
                         </TouchableOpacity>
                     </View>
                     <Text style={{ fontSize: fs.sm, color: '#666', marginBottom: 14 }} numberOfLines={2}>{address}</Text>
@@ -4005,7 +4009,7 @@ const SalesActivityScreen = ({ onBack }: { onBack: () => void }) => {
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>영업 동선</Text>
                 <View style={{ width: 60 }} />
@@ -4828,7 +4832,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                 backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#E4E4E7',
             }}>
                 <TouchableOpacity onPress={handleBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={{ fontSize: fs.lg, color: '#18181B', fontWeight: '600' }}>{'< 뒤로'}</Text>
+                    <Text style={{ fontSize: fs.lg, color: '#18181B', fontWeight: '600' }}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={{ fontSize: fs.lg, fontWeight: '700', color: '#18181B' }}>지역으로 선택</Text>
                 <View style={{ width: 50 }} />
@@ -5570,7 +5574,7 @@ const PlaceDetailScreen = ({ place, onBack, onMoveToMap }: {
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>장소 상세</Text>
                 <TouchableOpacity
@@ -5675,7 +5679,7 @@ const PlaceManagementListScreen = ({ onBack, onMoveToMap }: {
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>장소관리 목록</Text>
                 <View style={{ width: 50 }} />
@@ -5807,7 +5811,7 @@ const NotificationListScreen = ({ onBack }: { onBack: () => void }) => {
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>알림</Text>
                 {notifications.length > 0 ? (
@@ -6341,7 +6345,7 @@ const SalesStatsScreen = ({ onBack }: { onBack: () => void }) => {
         <View style={styles.subScreenContainer}>
             <View style={styles.subScreenHeader}>
                 <TouchableOpacity onPress={onBack} style={styles.backButton}>
-                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
                 </TouchableOpacity>
                 <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>영업 통계</Text>
                 <View style={{ width: 60 }} />
@@ -6502,14 +6506,15 @@ const RegionSelectorModal = React.memo(({ visible, onClose, onSelect, currentLab
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F4F4F5' }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                             {step !== 'province' && (
-                                <TouchableOpacity onPress={() => setStep(step === 'town' ? 'city' : 'province')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                    <Text style={{ fontSize: 20, color: '#3F3F46' }}>{'←'}</Text>
+                                <TouchableOpacity onPress={() => setStep(step === 'town' ? 'city' : 'province')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ paddingVertical: 6, paddingHorizontal: 8, minWidth: 44, minHeight: 44, justifyContent: 'center' }}>
+                                    <Text style={{ fontSize: 22, color: '#3F3F46', fontWeight: '600' }}>{'← 뒤로'}</Text>
                                 </TouchableOpacity>
                             )}
                             <Text style={{ fontSize: 17, fontWeight: '700', color: '#18181B' }}>{stepTitle}</Text>
                         </View>
-                        <TouchableOpacity onPress={resetAndClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                            <Text style={{ fontSize: 22, color: '#525252' }}>×</Text>
+                        <TouchableOpacity onPress={resetAndClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#F4F4F5', borderRadius: 8, borderWidth: 1, borderColor: '#BFBFBF', minHeight: 44 }}>
+                            <Text style={{ fontSize: 18, color: '#333', fontWeight: '700' }}>✕ </Text>
+                            <Text style={{ fontSize: 15, color: '#333', fontWeight: '600' }}>닫기</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -7600,10 +7605,11 @@ function AppContent() {
                         >
                             <Text style={[
                                 styles.menuText,
-                                { fontSize: fs.sm },
+                                { fontSize: fs.base },
                                 active && styles.activeMenuText,
                                 elderlyMode && active && { color: COLORS_HIGH_CONTRAST.primary, fontWeight: '800' },
                             ]}>{tab.label}</Text>
+                            {active && <View style={styles.menuActiveIndicator} />}
                         </TouchableOpacity>
                     );
                 })}
@@ -7815,8 +7821,15 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     menuItem: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%', paddingVertical: 10 },
-    menuText: { fontSize: 15, color: '#636363', fontWeight: '600' },
+    menuText: { fontSize: 17, color: '#636363', fontWeight: '600' },
     activeMenuText: { color: '#09090B', fontWeight: '800' },
+    menuActiveIndicator: {
+        width: 28,
+        height: 3,
+        backgroundColor: '#09090B',
+        borderRadius: 2,
+        marginTop: 4,
+    },
     gpsButton: {
         position: 'absolute',
         bottom: 108,
@@ -8293,14 +8306,17 @@ const styles = StyleSheet.create({
         borderBottomColor: '#E4E4E7',
         backgroundColor: '#FAFAFA',
     },
-    daumModalTitle: { fontSize: 16, fontWeight: '600', color: '#18181B', letterSpacing: -0.3 },
+    daumModalTitle: { fontSize: 19, fontWeight: '700', color: '#18181B', letterSpacing: -0.3 },
     daumModalClose: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
         backgroundColor: '#18181B',
-        borderRadius: 6,
+        borderRadius: 8,
+        minHeight: 48,
     },
-    daumModalCloseText: { color: '#FAFAFA', fontSize: 13, fontWeight: '500' },
+    daumModalCloseText: { color: '#FAFAFA', fontSize: 16, fontWeight: '600' },
 
     // 위치 버튼 (검색결과 옆)
     locationButton: {
