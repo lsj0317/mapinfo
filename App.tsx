@@ -100,32 +100,32 @@ const SOLAR_MIN_AREA_LARGE = 1000;  // 대형 (필터 3단계)
 
 const FONT_SCALE = {
     normal: {
-        xs: 11,
-        sm: 12,
-        md: 13,
-        base: 14,
-        lg: 15,
-        xl: 16,
-        '2xl': 17,
-        '3xl': 18,
-        '4xl': 24,
+        xs: 14,
+        sm: 15,
+        md: 16,
+        base: 17,
+        lg: 19,
+        xl: 21,
+        '2xl': 23,
+        '3xl': 25,
+        '4xl': 30,
     },
     elderly: {
-        xs: 16,
-        sm: 17,
-        md: 18,
-        base: 20,
-        lg: 22,
-        xl: 24,
-        '2xl': 26,
-        '3xl': 28,
-        '4xl': 34,
+        xs: 18,
+        sm: 19,
+        md: 21,
+        base: 23,
+        lg: 25,
+        xl: 28,
+        '2xl': 30,
+        '3xl': 33,
+        '4xl': 38,
     },
 };
 
 const TOUCH_SIZE = {
-    normal: { minHeight: 36, padding: 8 },
-    elderly: { minHeight: 60, padding: 16 },
+    normal: { minHeight: 48, padding: 12 },
+    elderly: { minHeight: 72, padding: 18 },
 };
 
 const COLORS_HIGH_CONTRAST = {
@@ -138,6 +138,16 @@ const COLORS_HIGH_CONTRAST = {
     error: '#C62828',
     success: '#1B5E20',
     warning: '#E65100',
+};
+
+// ===== Phase 1: 색상 대비 강화 (WCAG AA 4.5:1 이상) =====
+const COLORS_ACCESSIBLE = {
+    mutedText: '#737373',       // 기존 #A1A1AA → 4.5:1 이상
+    secondaryText: '#525252',   // 기존 #71717A → 5.5:1 이상
+    hintText: '#636363',        // 기존 #A1A1AA → 5:1 이상
+    inactiveIcon: '#6B6B6B',    // 기존 #A1A1AA → 4.7:1 이상
+    border: '#BFBFBF',          // 기존 #E4E4E7 → 더 뚜렷한 구분선
+    panelCloseText: '#525252',  // 기존 #999 → 명확한 닫기 버튼
 };
 
 // React Query 클라이언트
@@ -1314,7 +1324,7 @@ const offlineStyles = StyleSheet.create({
     },
     offlineBubble: { backgroundColor: '#18181B', borderColor: '#DC2626' },
     onlineBubble: { backgroundColor: '#18181B', borderColor: '#27272A' },
-    bubbleText: { color: '#FAFAFA', fontSize: 11, fontWeight: '500' },
+    bubbleText: { color: '#FAFAFA', fontSize: 14, fontWeight: '500' },
     offlineTail: {
         position: 'absolute',
         bottom: -7,
@@ -1595,20 +1605,20 @@ const filterStyles = StyleSheet.create({
         gap: 8,
     },
     headerActive: { backgroundColor: '#F4F4F5' },
-    headerIcon: { fontSize: 14, color: '#71717A' },
+    headerIcon: { fontSize: 14, color: '#525252' },
     headerText: { fontSize: 13, color: '#52525B', fontWeight: '500', flex: 1 },
-    countText: { fontSize: 11, color: '#A1A1AA' },
+    countText: { fontSize: 14, color: '#737373' },
     resetBtn: { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: '#18181B', borderRadius: 6 },
-    resetText: { color: '#FAFAFA', fontSize: 10, fontWeight: '600' },
+    resetText: { color: '#FAFAFA', fontSize: 13, fontWeight: '600' },
     panel: { paddingHorizontal: 14, paddingBottom: 14 },
-    sectionLabel: { fontSize: 11, color: '#71717A', fontWeight: '500', marginBottom: 8, marginTop: 10 },
+    sectionLabel: { fontSize: 14, color: '#525252', fontWeight: '500', marginBottom: 8, marginTop: 10 },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 6, borderWidth: 1, borderColor: '#E4E4E7', backgroundColor: '#fff' },
     chipActive: { borderColor: '#18181B', backgroundColor: '#18181B' },
-    chipText: { fontSize: 12, color: '#52525B', fontWeight: '500' },
+    chipText: { fontSize: 15, color: '#52525B', fontWeight: '500' },
     chipTextActive: { color: '#FAFAFA' },
     toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E4E4E7' },
-    toggleLabel: { fontSize: 12, color: '#18181B', flex: 1 },
+    toggleLabel: { fontSize: 15, color: '#18181B', flex: 1 },
     toggle: { width: 44, height: 24, borderRadius: 12, backgroundColor: '#E4E4E7', padding: 2 },
     toggleOn: { backgroundColor: '#18181B' },
     toggleThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
@@ -1749,8 +1759,8 @@ const photoStyles = StyleSheet.create({
     },
     sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     addBtn: { backgroundColor: '#18181B', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
-    addBtnText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500' },
-    empty: { fontSize: 12, color: '#A1A1AA', textAlign: 'center', paddingVertical: 16 },
+    addBtnText: { color: '#FAFAFA', fontSize: 15, fontWeight: '500' },
+    empty: { fontSize: 15, color: '#737373', textAlign: 'center', paddingVertical: 16 },
     photoWrap: { marginRight: 10, borderRadius: 8, overflow: 'hidden' },
     photo: { width: 100, height: 100, borderRadius: 8 },
     deleteHint: { backgroundColor: 'rgba(0,0,0,0.4)', paddingVertical: 3, alignItems: 'center' },
@@ -1813,7 +1823,7 @@ const NotificationSection = ({ property, salesStatus }: { property: Property; sa
             {isFollowUpStatus && !scheduledInfo && (
                 <View style={{ backgroundColor: '#FEF3C7', borderRadius: 6, padding: 10, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <Text style={{ fontSize: 14 }}>💡</Text>
-                    <Text style={{ fontSize: 12, color: '#92400E', flex: 1 }}>
+                    <Text style={{ fontSize: 15, color: '#92400E', flex: 1 }}>
                         {currentStatus === '보류' ? '보류 매물입니다. 재방문 예정일 알림을 설정하세요.' : '대기중 매물입니다. 연락 예정일 알림을 설정하세요.'}
                     </Text>
                 </View>
@@ -1869,9 +1879,9 @@ const notifStyles = StyleSheet.create({
     scheduledBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     scheduledIcon: { fontSize: 16, color: '#18181B', fontWeight: '700' },
     scheduledDate: { fontSize: 14, fontWeight: '600', color: '#18181B' },
-    scheduledSub: { fontSize: 11, color: '#71717A', marginTop: 2 },
+    scheduledSub: { fontSize: 14, color: '#525252', marginTop: 2 },
     cancelBtn: { paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#18181B', borderRadius: 6 },
-    cancelBtnText: { color: '#FAFAFA', fontSize: 11, fontWeight: '500' },
+    cancelBtnText: { color: '#FAFAFA', fontSize: 14, fontWeight: '500' },
     addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', borderRadius: 8, paddingVertical: 12 },
     addBtnText: { color: '#FAFAFA', fontSize: 13, fontWeight: '500' },
     pickerBox: {},
@@ -2370,23 +2380,23 @@ const rxs = StyleSheet.create({
     titleTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
     docHeader: { backgroundColor: '#fff', margin: 10, borderRadius: 4, padding: 14, borderWidth: 1.5, borderColor: '#333' },
     docTitle: { fontSize: 15, fontWeight: '700', textAlign: 'center', color: '#000' },
-    docSubtitle: { fontSize: 11, textAlign: 'center', color: '#555', marginBottom: 6 },
+    docSubtitle: { fontSize: 14, textAlign: 'center', color: '#555', marginBottom: 6 },
     divider: { height: 1, backgroundColor: '#333', marginVertical: 8 },
     docRow: { flexDirection: 'row', marginTop: 3 },
-    docLabel: { fontSize: 11, color: '#666', width: 72 },
-    docValue: { fontSize: 11, color: '#000', flex: 1 },
+    docLabel: { fontSize: 14, color: '#666', width: 72 },
+    docValue: { fontSize: 14, color: '#000', flex: 1 },
     sectionHeader: { backgroundColor: '#37474F', paddingVertical: 7, paddingHorizontal: 12, marginTop: 10, marginHorizontal: 10, borderTopLeftRadius: 4, borderTopRightRadius: 4, alignItems: 'center' },
-    sectionHeaderText: { color: '#fff', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
-    sectionHeaderSub: { color: '#CFD8DC', fontSize: 10, marginTop: 2 },
+    sectionHeaderText: { color: '#fff', fontSize: 15, fontWeight: '700', letterSpacing: 1 },
+    sectionHeaderSub: { color: '#CFD8DC', fontSize: 13, marginTop: 2 },
     table: { marginHorizontal: 10, borderWidth: 1, borderTopWidth: 0, borderColor: '#666', backgroundColor: '#fff' },
     row: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#999' },
     rowCont: { backgroundColor: '#F9F9F9' },
     cell: { padding: 4, borderRightWidth: 1, borderRightColor: '#999' },
-    cellTxt: { fontSize: 10, color: '#222', lineHeight: 14 },
+    cellTxt: { fontSize: 13, color: '#222', lineHeight: 14 },
     footer: { margin: 10, marginTop: 14, padding: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#ccc', borderRadius: 4, alignItems: 'center' },
-    footerTxt: { fontSize: 11, color: '#555', textAlign: 'center' },
-    footerDate: { fontSize: 12, fontWeight: '600', color: '#333', marginTop: 4 },
-    footerJuris: { fontSize: 12, color: '#333', marginTop: 2 },
+    footerTxt: { fontSize: 14, color: '#555', textAlign: 'center' },
+    footerDate: { fontSize: 15, fontWeight: '600', color: '#333', marginTop: 4 },
+    footerJuris: { fontSize: 15, color: '#333', marginTop: 2 },
     closeBtn: { backgroundColor: '#37474F', margin: 12, borderRadius: 8, paddingVertical: 12, alignItems: 'center' },
     closeBtnTxt: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });
@@ -2497,7 +2507,7 @@ const landUseStyles = StyleSheet.create({
     },
     badgeText: {
         color: '#fff',
-        fontSize: 11,
+        fontSize: 14,
         fontWeight: '700',
     },
     row: {
@@ -2506,7 +2516,7 @@ const landUseStyles = StyleSheet.create({
         marginBottom: 6,
     },
     label: {
-        fontSize: 12,
+        fontSize: 15,
         color: '#666',
         width: 60,
     },
@@ -2526,7 +2536,7 @@ const landUseStyles = StyleSheet.create({
         lineHeight: 18,
     },
     disclaimer: {
-        fontSize: 10,
+        fontSize: 13,
         color: '#888',
         marginTop: 4,
         fontStyle: 'italic',
@@ -2749,7 +2759,7 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                         <View style={{ marginBottom: 12 }}>
                             <Text style={styles.modalLabel}>선택된 위치</Text>
                             <Text style={{ fontSize: 13, color: '#555', marginBottom: 4 }}>{marker.address}</Text>
-                            {pnu ? <Text style={{ fontSize: 12, color: '#888' }}>PNU: {pnu}</Text> : null}
+                            {pnu ? <Text style={{ fontSize: 15, color: '#888' }}>PNU: {pnu}</Text> : null}
                         </View>
                     )}
 
@@ -2811,7 +2821,7 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
                         <View style={styles.modalResultBox}>
                             {fromCache && (
                                 <View style={{ backgroundColor: '#E8F5E9', padding: 8, borderRadius: 6, marginBottom: 10 }}>
-                                    <Text style={{ fontSize: 12, color: '#2E7D32', textAlign: 'center' }}>
+                                    <Text style={{ fontSize: 15, color: '#2E7D32', textAlign: 'center' }}>
                                         저장된 데이터입니다 (API 비용 미발생)
                                     </Text>
                                 </View>
@@ -3401,7 +3411,7 @@ const RegistryDetailScreen = ({ record, onBack, onSoftDelete }: {
                 {/* 나머지 정보 */}
                 {infoRows.slice(2).map(({ label, value }) => value ? (
                     <View key={label} style={{ backgroundColor: '#fff', borderRadius: 8, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#E4E4E7' }}>
-                        <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 4 }}>{label}</Text>
+                        <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 4 }}>{label}</Text>
                         <Text style={{ fontSize: fs.base, color: '#18181B', fontWeight: '500' }}>{value}</Text>
                     </View>
                 ) : null)}
@@ -3558,7 +3568,7 @@ const RegistryHistoryScreen = ({ onBack }: { onBack: () => void }) => {
 
             {!isLoading && (
                 <View style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#F4F4F5', flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ fontSize: fs.xs, color: '#71717A', flex: 1 }}>
+                    <Text style={{ fontSize: fs.xs, color: '#525252', flex: 1 }}>
                         총 {filtered.length}건 · 소유자 확인 {filtered.filter(r => r.owner_name).length}건
                     </Text>
                     <TouchableOpacity onPress={loadHistory}>
@@ -4047,18 +4057,18 @@ const SalesActivityScreen = ({ onBack }: { onBack: () => void }) => {
                     <ActivityIndicator color="#18181B" style={{ marginTop: 40 }} />
                 ) : logs.length === 0 ? (
                     <View style={{ alignItems: 'center', paddingTop: 60 }}>
-                        <Text style={{ fontSize: fs.base, color: '#71717A' }}>이 날의 영업 기록이 없습니다.</Text>
+                        <Text style={{ fontSize: fs.base, color: '#525252' }}>이 날의 영업 기록이 없습니다.</Text>
                     </View>
                 ) : (
                     <>
                         {/* 요약 카드 */}
                         <View style={[cardStyle, { flexDirection: 'row', gap: 12 }]}>
                             <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderRightColor: '#E4E4E7' }}>
-                                <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 4 }}>총 이동거리</Text>
+                                <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 4 }}>총 이동거리</Text>
                                 <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B' }}>{totalKm.toFixed(1)} km</Text>
                             </View>
                             <View style={{ flex: 1, alignItems: 'center' }}>
-                                <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 4 }}>방문 기록</Text>
+                                <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 4 }}>방문 기록</Text>
                                 <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B' }}>{visitCount}곳</Text>
                             </View>
                         </View>
@@ -4077,7 +4087,7 @@ const SalesActivityScreen = ({ onBack }: { onBack: () => void }) => {
                                     <View key={l.id} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                                         <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: SALES_STATUS_COLORS[l.sales_status_at_visit as SalesStatus] || '#9E9E9E', marginRight: 8 }} />
                                         <View style={{ flex: 1 }}>
-                                            <Text style={{ fontSize: fs.xs, color: '#71717A' }}>{new Date(l.visited_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</Text>
+                                            <Text style={{ fontSize: fs.xs, color: '#525252' }}>{new Date(l.visited_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</Text>
                                             <Text style={{ fontSize: fs.sm, color: '#18181B' }}>{l.address || '주소 없음'}</Text>
                                         </View>
                                         <View style={{ backgroundColor: SALES_STATUS_COLORS[l.sales_status_at_visit as SalesStatus] || '#9E9E9E', borderRadius: 4, paddingHorizontal: 8, paddingVertical: 3 }}>
@@ -4098,7 +4108,7 @@ const SalesActivityScreen = ({ onBack }: { onBack: () => void }) => {
                                         {i < logs.length - 1 && <View style={{ width: 2, flex: 1, backgroundColor: '#E4E4E7', marginTop: 2 }} />}
                                     </View>
                                     <View style={{ flex: 1, paddingBottom: 4 }}>
-                                        <Text style={{ fontSize: fs.xs, color: '#71717A' }}>{new Date(l.visited_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}{l.distance_from_prev_km > 0 ? `  +${l.distance_from_prev_km.toFixed(2)}km` : ''}</Text>
+                                        <Text style={{ fontSize: fs.xs, color: '#525252' }}>{new Date(l.visited_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}{l.distance_from_prev_km > 0 ? `  +${l.distance_from_prev_km.toFixed(2)}km` : ''}</Text>
                                         <Text style={{ fontSize: fs.sm, color: '#18181B', marginTop: 1 }}>{l.address || `${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}`}</Text>
                                     </View>
                                 </View>
@@ -4154,7 +4164,7 @@ const ScheduledRemindersScreen = ({ onBack, onOpenProperty }: {
                 </View>
             ) : items.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-                    <Text style={{ fontSize: fs.base, color: '#71717A', textAlign: 'center' }}>예정된 알림이 없습니다.</Text>
+                    <Text style={{ fontSize: fs.base, color: '#525252', textAlign: 'center' }}>예정된 알림이 없습니다.</Text>
                 </View>
             ) : (
                 <ScrollView contentContainerStyle={{ padding: 16 }}>
@@ -4335,7 +4345,7 @@ const MoabogiCards = ({ onMoveToMap, onShowRegistry, onShowFavorites, onShowPlac
                         </Text>
                     </TouchableOpacity>
                 </View>
-                <Text style={{ fontSize: fs.sm, color: '#71717A' }}>오늘도 좋은 영업 하세요</Text>
+                <Text style={{ fontSize: fs.sm, color: '#525252' }}>오늘도 좋은 영업 하세요</Text>
             </View>
 
             {/* 빠른 액션 버튼 */}
@@ -4378,7 +4388,7 @@ const MoabogiCards = ({ onMoveToMap, onShowRegistry, onShowFavorites, onShowPlac
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={{ fontSize: fs.sm, color: '#18181B', fontWeight: '500' }} numberOfLines={1}>{name}</Text>
-                                    <Text style={{ fontSize: fs.xs, color: '#71717A' }}>
+                                    <Text style={{ fontSize: fs.xs, color: '#525252' }}>
                                         {item.sales_status} · {contactDate.toLocaleDateString('ko-KR')}
                                     </Text>
                                 </View>
@@ -4402,12 +4412,12 @@ const MoabogiCards = ({ onMoveToMap, onShowRegistry, onShowFavorites, onShowPlac
                         disabled={registryCount === 0}
                     >
                         <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#71717A' }}>등기부등본 발급 내역</Text>
+                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#525252' }}>등기부등본 발급 내역</Text>
                             <Text style={{ fontSize: fs['2xl'], fontWeight: '600', color: '#18181B', marginTop: 4 }}>
                                 {registryCount ?? 0}건
                             </Text>
                         </View>
-                        {registryCount !== 0 && <Text style={{ fontSize: 20, color: '#A1A1AA' }}>›</Text>}
+                        {registryCount !== 0 && <Text style={{ fontSize: 20, color: '#737373' }}>›</Text>}
                     </TouchableOpacity>
 
                     {/* 즐겨찾는 장소 */}
@@ -4417,12 +4427,12 @@ const MoabogiCards = ({ onMoveToMap, onShowRegistry, onShowFavorites, onShowPlac
                         disabled={favoritesCount === 0}
                     >
                         <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#71717A' }}>즐겨찾는 장소</Text>
+                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#525252' }}>즐겨찾는 장소</Text>
                             <Text style={{ fontSize: fs['2xl'], fontWeight: '600', color: '#18181B', marginTop: 4 }}>
                                 {favoritesCount ?? 0}건
                             </Text>
                         </View>
-                        {favoritesCount !== 0 && <Text style={{ fontSize: 20, color: '#A1A1AA' }}>›</Text>}
+                        {favoritesCount !== 0 && <Text style={{ fontSize: 20, color: '#737373' }}>›</Text>}
                     </TouchableOpacity>
 
                     {/* 장소관리 현황 */}
@@ -4432,9 +4442,9 @@ const MoabogiCards = ({ onMoveToMap, onShowRegistry, onShowFavorites, onShowPlac
                             onPress={totalPlaces !== 0 ? onShowPlaces : undefined}
                             disabled={totalPlaces === 0}
                         >
-                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#71717A', flex: 1 }}>장소관리 현황</Text>
+                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#525252', flex: 1 }}>장소관리 현황</Text>
                             <Text style={{ fontSize: fs.lg, fontWeight: '600', color: '#18181B', marginRight: 6 }}>{totalPlaces}건</Text>
-                            {totalPlaces !== 0 && <Text style={{ fontSize: 20, color: '#A1A1AA' }}>›</Text>}
+                            {totalPlaces !== 0 && <Text style={{ fontSize: 20, color: '#737373' }}>›</Text>}
                         </TouchableOpacity>
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                             {PLACE_STATUSES.filter(s => s !== '미접촉').map(s => (
@@ -4459,7 +4469,7 @@ const MoabogiCards = ({ onMoveToMap, onShowRegistry, onShowFavorites, onShowPlac
                         disabled={remindersCount === 0}
                     >
                         <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#71717A' }}>재방문 / 연락 예정</Text>
+                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#525252' }}>재방문 / 연락 예정</Text>
                             <Text style={{ fontSize: fs['2xl'], fontWeight: '600', color: '#18181B', marginTop: 4 }}>
                                 {remindersCount ?? 0}건
                             </Text>
@@ -4467,7 +4477,7 @@ const MoabogiCards = ({ onMoveToMap, onShowRegistry, onShowFavorites, onShowPlac
                                 <Text style={{ fontSize: fs.xs, color: '#F59E0B', marginTop: 2 }}>보류 · 대기중 매물 알림 예약됨</Text>
                             )}
                         </View>
-                        {remindersCount !== 0 && <Text style={{ fontSize: 20, color: '#A1A1AA' }}>›</Text>}
+                        {remindersCount !== 0 && <Text style={{ fontSize: 20, color: '#737373' }}>›</Text>}
                     </TouchableOpacity>
 
                     {/* 오늘 영업 이동거리 */}
@@ -4476,13 +4486,13 @@ const MoabogiCards = ({ onMoveToMap, onShowRegistry, onShowFavorites, onShowPlac
                         onPress={onShowActivity}
                     >
                         <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#71717A' }}>오늘 영업 이동거리</Text>
+                            <Text style={{ fontSize: fs.sm, fontWeight: '500', color: '#525252' }}>오늘 영업 이동거리</Text>
                             <Text style={{ fontSize: fs['2xl'], fontWeight: '600', color: '#18181B', marginTop: 4 }}>
                                 {todayActivityKm.toFixed(1)} km
                             </Text>
-                            <Text style={{ fontSize: fs.xs, color: '#71717A', marginTop: 2 }}>방문 {todayVisitCount}곳 기록됨</Text>
+                            <Text style={{ fontSize: fs.xs, color: '#525252', marginTop: 2 }}>방문 {todayVisitCount}곳 기록됨</Text>
                         </View>
-                        <Text style={{ fontSize: 20, color: '#A1A1AA' }}>›</Text>
+                        <Text style={{ fontSize: 20, color: '#737373' }}>›</Text>
                     </TouchableOpacity>
                 </>
             )}
@@ -4518,7 +4528,7 @@ const HomeScreen = ({ onSelectRegion, onSelectSearch, onSelectMap }: HomeScreenP
         <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
             <View style={{ paddingHorizontal: 16, paddingTop: 28, paddingBottom: 4 }}>
                 <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', letterSpacing: -0.5 }}>조회조건 선택</Text>
-                <Text style={{ fontSize: fs.sm, color: '#71717A', marginTop: 4 }}>원하는 방법으로 건물을 조회하세요</Text>
+                <Text style={{ fontSize: fs.sm, color: '#525252', marginTop: 4 }}>원하는 방법으로 건물을 조회하세요</Text>
             </View>
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 130 }}>
                 {cards.map(card => (
@@ -4544,9 +4554,9 @@ const HomeScreen = ({ onSelectRegion, onSelectSearch, onSelectMap }: HomeScreenP
                     >
                         <View style={{ flex: 1 }}>
                             <Text style={{ fontSize: fs.lg, fontWeight: '700', color: '#18181B', marginBottom: 6 }}>{card.title}</Text>
-                            <Text style={{ fontSize: fs.sm, color: '#71717A', lineHeight: 20 }}>{card.desc}</Text>
+                            <Text style={{ fontSize: fs.sm, color: '#525252', lineHeight: 20 }}>{card.desc}</Text>
                         </View>
-                        <Text style={{ fontSize: 22, color: '#A1A1AA', marginLeft: 12 }}>›</Text>
+                        <Text style={{ fontSize: 22, color: '#737373', marginLeft: 12 }}>›</Text>
                     </TouchableOpacity>
                 ))}
             </ScrollView>
@@ -4883,7 +4893,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                                 return (
                                     <View key={label} style={{ flex: i < totalSteps - 1 ? 1 : 0, alignItems: i === 0 ? 'flex-start' : i === totalSteps - 1 ? 'flex-end' : 'center' }}>
                                         <Text style={{
-                                            fontSize: 11, fontWeight: isActive || isCompleted ? '700' : '500',
+                                            fontSize: 14, fontWeight: isActive || isCompleted ? '700' : '500',
                                             color: isActive ? '#18181B' : isCompleted ? '#3F3F46' : '#A1A1AA',
                                         }}>{label}</Text>
                                     </View>
@@ -4902,14 +4912,14 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                         <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
                             지역을 선택해주세요
                         </Text>
-                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginBottom: 24 }}>
+                        <Text style={{ fontSize: fs.sm, color: '#525252', marginBottom: 24 }}>
                             조회하려는 도 또는 광역시를 선택하세요
                         </Text>
 
                         {loadingProvinces ? (
                             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                                 <ActivityIndicator size="large" color="#18181B" />
-                                <Text style={{ marginTop: 12, color: '#71717A', fontSize: fs.sm }}>지역 정보 로딩 중...</Text>
+                                <Text style={{ marginTop: 12, color: '#525252', fontSize: fs.sm }}>지역 정보 로딩 중...</Text>
                             </View>
                         ) : (
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -4968,7 +4978,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                         <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
                             상세 지역을 선택해주세요
                         </Text>
-                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginBottom: 8 }}>
+                        <Text style={{ fontSize: fs.sm, color: '#525252', marginBottom: 8 }}>
                             {selectedProvinceShort} 내 시·군·구를 선택하세요
                         </Text>
 
@@ -4983,11 +4993,11 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                         {loadingCities ? (
                             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
                                 <ActivityIndicator size="large" color="#18181B" />
-                                <Text style={{ marginTop: 12, color: '#71717A', fontSize: fs.sm }}>시·군·구 로딩 중...</Text>
+                                <Text style={{ marginTop: 12, color: '#525252', fontSize: fs.sm }}>시·군·구 로딩 중...</Text>
                             </View>
                         ) : cities.length === 0 ? (
                             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                                <Text style={{ color: '#71717A', fontSize: fs.base }}>등록된 시·군·구가 없습니다</Text>
+                                <Text style={{ color: '#525252', fontSize: fs.base }}>등록된 시·군·구가 없습니다</Text>
                             </View>
                         ) : (
                             <>
@@ -5044,7 +5054,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                                         >
                                             <Text style={{ color: cityPage === 0 ? '#A1A1AA' : '#FAFAFA', fontSize: fs.sm, fontWeight: '600' }}>이전</Text>
                                         </TouchableOpacity>
-                                        <Text style={{ fontSize: fs.sm, color: '#71717A', fontWeight: '600' }}>
+                                        <Text style={{ fontSize: fs.sm, color: '#525252', fontWeight: '600' }}>
                                             {cityPage + 1} / {totalPages}
                                         </Text>
                                         <TouchableOpacity
@@ -5082,7 +5092,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                         <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
                             어떤 장소를 찾으시나요?
                         </Text>
-                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginBottom: 8 }}>
+                        <Text style={{ fontSize: fs.sm, color: '#525252', marginBottom: 8 }}>
                             조회할 건물 유형을 선택하세요
                         </Text>
 
@@ -5239,7 +5249,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                         <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
                             검색 조건 확인
                         </Text>
-                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginBottom: 24 }}>
+                        <Text style={{ fontSize: fs.sm, color: '#525252', marginBottom: 24 }}>
                             선택하신 내용이 맞는지 확인해주세요
                         </Text>
 
@@ -5273,7 +5283,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                                     </View>
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ fontSize: fs.xs, color: '#A1A1AA', fontWeight: '500', marginBottom: 2 }}>지역</Text>
+                                    <Text style={{ fontSize: fs.xs, color: '#737373', fontWeight: '500', marginBottom: 2 }}>지역</Text>
                                     <Text style={{ fontSize: fs.xl, fontWeight: '700', color: '#18181B' }}>
                                         {selectedProvinceShort} {selectedCity}
                                     </Text>
@@ -5337,7 +5347,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                                     )}
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={{ fontSize: fs.xs, color: '#A1A1AA', fontWeight: '500', marginBottom: 2 }}>건물 유형</Text>
+                                    <Text style={{ fontSize: fs.xs, color: '#737373', fontWeight: '500', marginBottom: 2 }}>건물 유형</Text>
                                     <Text style={{ fontSize: fs.xl, fontWeight: '700', color: '#18181B' }}>
                                         {selectedCategory === 'building' ? '일반건축물' : selectedCategory === 'commercial' ? '상가' : '공단'}
                                     </Text>
@@ -5359,7 +5369,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                             {resultLoading ? (
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                     <ActivityIndicator color="#FAFAFA" size="small" />
-                                    <Text style={{ fontSize: fs.lg, color: '#A1A1AA', fontWeight: '600' }}>
+                                    <Text style={{ fontSize: fs.lg, color: '#737373', fontWeight: '600' }}>
                                         검색 중입니다...
                                     </Text>
                                 </View>
@@ -5371,7 +5381,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                                             : '검색 준비 완료'}
                                     </Text>
                                     {resultItems.length > 0 && (
-                                        <Text style={{ fontSize: 14, color: '#A1A1AA', fontWeight: '600' }}>
+                                        <Text style={{ fontSize: 14, color: '#737373', fontWeight: '600' }}>
                                             {resultListOpen ? '▲' : '▼'}
                                         </Text>
                                     )}
@@ -5429,12 +5439,12 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                                             <Text style={{ fontSize: fs.md, fontWeight: '600', color: '#18181B', marginBottom: 2 }} numberOfLines={1}>
                                                 {item.title}
                                             </Text>
-                                            <Text style={{ fontSize: fs.sm, color: '#71717A' }} numberOfLines={1}>
+                                            <Text style={{ fontSize: fs.sm, color: '#525252' }} numberOfLines={1}>
                                                 {item.address.road || item.address.parcel || '주소 정보 없음'}
                                             </Text>
                                         </View>
                                         {/* 화살표 */}
-                                        <Text style={{ fontSize: 16, color: '#A1A1AA', marginLeft: 8 }}>{'>'}</Text>
+                                        <Text style={{ fontSize: 16, color: '#737373', marginLeft: 8 }}>{'>'}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
@@ -5465,7 +5475,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                             accessibilityRole="button"
                             accessibilityLabel="처음부터 다시 선택하기"
                         >
-                            <Text style={{ fontSize: fs.md, color: '#71717A', fontWeight: '500' }}>
+                            <Text style={{ fontSize: fs.md, color: '#525252', fontWeight: '500' }}>
                                 처음부터 다시 선택하기
                             </Text>
                         </TouchableOpacity>
@@ -5576,14 +5586,14 @@ const PlaceDetailScreen = ({ place, onBack, onMoveToMap }: {
                     <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: PLACE_STATUS_COLORS[place.status], marginRight: 10 }} />
                     <Text style={{ fontSize: fs.lg, fontWeight: '700', color: PLACE_STATUS_COLORS[place.status] }}>{place.status}</Text>
                     {place.status_date && (
-                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginLeft: 12 }}>{place.status_date}</Text>
+                        <Text style={{ fontSize: fs.sm, color: '#525252', marginLeft: 12 }}>{place.status_date}</Text>
                     )}
                 </View>
 
                 {/* 상세 정보 행 */}
                 {infoRows.map(({ label, value }) => value ? (
                     <View key={label} style={{ backgroundColor: '#fff', borderRadius: 8, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#E4E4E7' }}>
-                        <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 4 }}>{label}</Text>
+                        <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 4 }}>{label}</Text>
                         <Text style={{ fontSize: fs.base, color: '#18181B', fontWeight: '500' }}>{value}</Text>
                     </View>
                 ) : null)}
@@ -5724,9 +5734,9 @@ const PlaceManagementListScreen = ({ onBack, onMoveToMap }: {
                             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: PLACE_STATUS_COLORS[item.status], marginRight: 6 }} />
                             <Text style={{ fontSize: fs.sm, color: PLACE_STATUS_COLORS[item.status], fontWeight: '600' }}>{item.status}</Text>
                             {item.status_date && (
-                                <Text style={{ fontSize: fs.xs, color: '#A1A1AA', marginLeft: 8 }}>{item.status_date}</Text>
+                                <Text style={{ fontSize: fs.xs, color: '#737373', marginLeft: 8 }}>{item.status_date}</Text>
                             )}
-                            <Text style={{ fontSize: fs.xs, color: '#A1A1AA', marginLeft: 'auto' }}>
+                            <Text style={{ fontSize: fs.xs, color: '#737373', marginLeft: 'auto' }}>
                                 {item.created_at ? new Date(item.created_at).toLocaleDateString('ko-KR') : ''}
                             </Text>
                         </View>
@@ -5734,7 +5744,7 @@ const PlaceManagementListScreen = ({ onBack, onMoveToMap }: {
                             {item.road_address || item.jibun_address || `${item.lat.toFixed(6)}, ${item.lng.toFixed(6)}`}
                         </Text>
                         {item.memo ? (
-                            <Text style={{ fontSize: fs.sm, color: '#71717A' }} numberOfLines={1}>{item.memo}</Text>
+                            <Text style={{ fontSize: fs.sm, color: '#525252' }} numberOfLines={1}>{item.memo}</Text>
                         ) : null}
                     </TouchableOpacity>
                 )}
@@ -5819,7 +5829,7 @@ const NotificationListScreen = ({ onBack }: { onBack: () => void }) => {
                                 <View style={{ backgroundColor: NOTIF_TYPE_COLORS[item.type], borderRadius: 4, paddingHorizontal: 7, paddingVertical: 2 }}>
                                     <Text style={{ fontSize: fs.xs, color: '#fff', fontWeight: '700' }}>{NOTIF_TYPE_LABELS[item.type]}</Text>
                                 </View>
-                                <Text style={{ fontSize: fs.xs, color: '#A1A1AA' }}>
+                                <Text style={{ fontSize: fs.xs, color: '#737373' }}>
                                     {new Date(item.timestamp).toLocaleDateString('ko-KR')} {new Date(item.timestamp).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                                 </Text>
                             </View>
@@ -6024,20 +6034,20 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
                 borderColor: '#FCA5A5',
             }}>
                 <View>
-                    <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 2 }}>틸코 API 포인트 잔액</Text>
+                    <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 2 }}>틸코 API 포인트 잔액</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
                         {tilkoBalance !== null ? (
                             <>
                                 <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: tilkoBalance < 5 ? '#DC2626' : '#18181B' }}>
                                     {tilkoBalance.toLocaleString()}
                                 </Text>
-                                <Text style={{ fontSize: fs.sm, color: '#71717A' }}>P</Text>
+                                <Text style={{ fontSize: fs.sm, color: '#525252' }}>P</Text>
                                 {tilkoBalance < 5 && (
                                     <Text style={{ fontSize: fs.sm, color: '#DC2626', fontWeight: '600' }}>⚠ 잔액 부족</Text>
                                 )}
                             </>
                         ) : (
-                            <Text style={{ fontSize: fs.base, color: '#A1A1AA' }}>조회 중...</Text>
+                            <Text style={{ fontSize: fs.base, color: '#737373' }}>조회 중...</Text>
                         )}
                     </View>
                 </View>
@@ -6364,7 +6374,7 @@ const SalesStatsScreen = ({ onBack }: { onBack: () => void }) => {
                             { label: '접촉률', value: `${contactRate}%` },
                         ].map((item, i, arr) => (
                             <View key={item.label} style={{ flex: 1, alignItems: 'center', borderRightWidth: i < arr.length - 1 ? 1 : 0, borderRightColor: '#E4E4E7' }}>
-                                <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 4 }}>{item.label}</Text>
+                                <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 4 }}>{item.label}</Text>
                                 <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B' }}>{item.value}</Text>
                             </View>
                         ))}
@@ -6374,7 +6384,7 @@ const SalesStatsScreen = ({ onBack }: { onBack: () => void }) => {
                     <View style={cardStyle}>
                         <Text style={{ fontSize: fs.sm, fontWeight: '600', color: '#52525B', marginBottom: 14 }}>영업상태 분포</Text>
                         {totalProps === 0 ? (
-                            <Text style={{ fontSize: fs.sm, color: '#A1A1AA', textAlign: 'center', paddingVertical: 16 }}>등록된 매물이 없습니다.</Text>
+                            <Text style={{ fontSize: fs.sm, color: '#737373', textAlign: 'center', paddingVertical: 16 }}>등록된 매물이 없습니다.</Text>
                         ) : (
                             SALES_STATUSES.map(s => {
                                 const count = statusCounts[s] || 0;
@@ -6385,7 +6395,7 @@ const SalesStatsScreen = ({ onBack }: { onBack: () => void }) => {
                                             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: SALES_STATUS_COLORS[s], marginRight: 8 }} />
                                             <Text style={{ fontSize: fs.sm, color: '#18181B', flex: 1 }}>{s}</Text>
                                             <Text style={{ fontSize: fs.sm, color: '#52525B', fontWeight: '600' }}>{count}건</Text>
-                                            <Text style={{ fontSize: fs.xs, color: '#A1A1AA', marginLeft: 8, width: 34, textAlign: 'right' }}>
+                                            <Text style={{ fontSize: fs.xs, color: '#737373', marginLeft: 8, width: 34, textAlign: 'right' }}>
                                                 {(pct * 100).toFixed(0)}%
                                             </Text>
                                         </View>
@@ -6402,18 +6412,18 @@ const SalesStatsScreen = ({ onBack }: { onBack: () => void }) => {
                     <View style={cardStyle}>
                         <Text style={{ fontSize: fs.sm, fontWeight: '600', color: '#52525B', marginBottom: 12 }}>
                             영업 이동 기록
-                            <Text style={{ fontSize: fs.xs, color: '#A1A1AA', fontWeight: '400' }}>  ({PERIOD_OPTIONS.find(p => p.key === period)?.label})</Text>
+                            <Text style={{ fontSize: fs.xs, color: '#737373', fontWeight: '400' }}>  ({PERIOD_OPTIONS.find(p => p.key === period)?.label})</Text>
                         </Text>
                         <View style={{ flexDirection: 'row', gap: 12 }}>
                             <View style={{ flex: 1, backgroundColor: '#F4F4F5', borderRadius: 8, padding: 14, alignItems: 'center' }}>
-                                <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 4 }}>총 이동거리</Text>
+                                <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 4 }}>총 이동거리</Text>
                                 <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B' }}>{activityKm.toFixed(1)}</Text>
-                                <Text style={{ fontSize: fs.xs, color: '#71717A' }}>km</Text>
+                                <Text style={{ fontSize: fs.xs, color: '#525252' }}>km</Text>
                             </View>
                             <View style={{ flex: 1, backgroundColor: '#F4F4F5', borderRadius: 8, padding: 14, alignItems: 'center' }}>
-                                <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 4 }}>GPS 방문 기록</Text>
+                                <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 4 }}>GPS 방문 기록</Text>
                                 <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B' }}>{activityVisits}</Text>
-                                <Text style={{ fontSize: fs.xs, color: '#71717A' }}>건</Text>
+                                <Text style={{ fontSize: fs.xs, color: '#525252' }}>건</Text>
                             </View>
                         </View>
                     </View>
@@ -6423,7 +6433,7 @@ const SalesStatsScreen = ({ onBack }: { onBack: () => void }) => {
                         <View style={[cardStyle, { borderLeftWidth: 4, borderLeftColor: '#9E9E9E' }]}>
                             <Text style={{ fontSize: fs.sm, fontWeight: '600', color: '#52525B', marginBottom: 4 }}>미접촉 매물</Text>
                             <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B' }}>{statusCounts['미접촉']}건</Text>
-                            <Text style={{ fontSize: fs.xs, color: '#A1A1AA', marginTop: 4 }}>아직 연락하지 않은 매물입니다. 지도에서 확인하세요.</Text>
+                            <Text style={{ fontSize: fs.xs, color: '#737373', marginTop: 4 }}>아직 연락하지 않은 매물입니다. 지도에서 확인하세요.</Text>
                         </View>
                     )}
                 </ScrollView>
@@ -6499,7 +6509,7 @@ const RegionSelectorModal = React.memo(({ visible, onClose, onSelect, currentLab
                             <Text style={{ fontSize: 17, fontWeight: '700', color: '#18181B' }}>{stepTitle}</Text>
                         </View>
                         <TouchableOpacity onPress={resetAndClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                            <Text style={{ fontSize: 22, color: '#71717A' }}>×</Text>
+                            <Text style={{ fontSize: 22, color: '#525252' }}>×</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -6529,7 +6539,7 @@ const RegionSelectorModal = React.memo(({ visible, onClose, onSelect, currentLab
                                     {step === 'province' ? `${(item as ProvinceData).short}  ${item.name}` : item.name}
                                 </Text>
                                 {(step === 'province' || step === 'city') && (
-                                    <Text style={{ fontSize: 13, color: '#A1A1AA' }}>{'>'}</Text>
+                                    <Text style={{ fontSize: 13, color: '#737373' }}>{'>'}</Text>
                                 )}
                             </TouchableOpacity>
                         )}
@@ -7286,7 +7296,7 @@ function AppContent() {
                         {/* 플로팅 지도 검색바 */}
                         <View style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 30 }} pointerEvents="box-none">
                             <View style={{ backgroundColor: '#fff', borderRadius: 10, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, elevation: 6, shadowColor: '#000', shadowOpacity: 0.18, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6 }}>
-                                <Text style={{ color: '#A1A1AA', fontSize: 14, marginRight: 8 }}>Q</Text>
+                                <Text style={{ color: '#737373', fontSize: 14, marginRight: 8 }}>Q</Text>
                                 <TextInput
                                     style={{ flex: 1, fontSize: fs.base, color: '#18181B', paddingVertical: 0 }}
                                     placeholder="지도에서 장소 검색..."
@@ -7301,7 +7311,7 @@ function AppContent() {
                                     <ActivityIndicator size="small" color="#71717A" style={{ marginLeft: 6 }} />
                                 ) : mapSearchText.length > 0 ? (
                                     <TouchableOpacity onPress={() => { setMapSearchText(''); setMapSearchResults([]); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                        <Text style={{ color: '#A1A1AA', fontSize: 16, marginLeft: 6 }}>×</Text>
+                                        <Text style={{ color: '#737373', fontSize: 16, marginLeft: 6 }}>×</Text>
                                     </TouchableOpacity>
                                 ) : null}
                             </View>
@@ -7323,7 +7333,7 @@ function AppContent() {
                                                 }}
                                             >
                                                 <Text style={{ fontSize: fs.base, fontWeight: '500', color: '#18181B' }} numberOfLines={1}>{item.name}</Text>
-                                                <Text style={{ fontSize: fs.sm, color: '#71717A', marginTop: 2 }} numberOfLines={1}>{item.address}</Text>
+                                                <Text style={{ fontSize: fs.sm, color: '#525252', marginTop: 2 }} numberOfLines={1}>{item.address}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </ScrollView>
@@ -7344,12 +7354,12 @@ function AppContent() {
                                 }}
                                 accessibilityLabel={`틸코 잔액 ${tilkoBalance}포인트. 탭하여 새로고침`}
                             >
-                                <Text style={{ fontSize: 10, color: '#A1A1AA' }}>잔액</Text>
+                                <Text style={{ fontSize: 13, color: '#737373' }}>잔액</Text>
                                 <Text style={{ fontSize: 13, fontWeight: '700', color: tilkoBalance < 5 ? '#FEF2F2' : '#FAFAFA' }}>
                                     {tilkoBalance.toLocaleString()}P
                                 </Text>
                                 {tilkoBalance < 5 && (
-                                    <Text style={{ fontSize: 10, color: '#FCA5A5' }}>⚠</Text>
+                                    <Text style={{ fontSize: 13, color: '#FCA5A5' }}>⚠</Text>
                                 )}
                             </TouchableOpacity>
                         )}
@@ -7705,7 +7715,7 @@ const splashStyles = StyleSheet.create({
     },
     appSubtitle: {
         fontSize: 13,
-        color: '#71717A',
+        color: '#525252',
         letterSpacing: 1,
     },
     loadingArea: {
@@ -7713,8 +7723,8 @@ const splashStyles = StyleSheet.create({
         alignItems: 'center',
     },
     stageText: {
-        fontSize: 12,
-        color: '#71717A',
+        fontSize: 15,
+        color: '#525252',
         marginBottom: 10,
     },
     percentText: {
@@ -7737,7 +7747,7 @@ const splashStyles = StyleSheet.create({
         borderRadius: 2,
     },
     versionText: {
-        fontSize: 11,
+        fontSize: 14,
         color: '#52525B',
     },
 });
@@ -7759,7 +7769,7 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     },
     header: {
-        height: 52,
+        height: 58,
         backgroundColor: '#09090B',
         flexDirection: 'row',
         justifyContent: 'center',
@@ -7774,11 +7784,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    headerIcon: { fontSize: 22 },
+    headerIcon: { fontSize: 24 },
     title: {
         color: '#FAFAFA',
-        fontSize: 16,
-        fontWeight: '600',
+        fontSize: 18,
+        fontWeight: '700',
         letterSpacing: -0.3,
     },
     mapContainer: { flex: 1, width: '100%', height: '100%' },
@@ -7789,14 +7799,14 @@ const styles = StyleSheet.create({
         left: 16,
         right: 16,
         backgroundColor: '#FFFFFF',
-        borderRadius: 16,
+        borderRadius: 18,
         flexDirection: 'row',
         justifyContent: 'space-around',
         alignItems: 'center',
-        height: 64,
+        height: 72,
         paddingHorizontal: 4,
-        borderWidth: 1,
-        borderColor: '#E4E4E7',
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.1,
@@ -7804,16 +7814,16 @@ const styles = StyleSheet.create({
         elevation: 10,
         zIndex: 10,
     },
-    menuItem: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%', paddingVertical: 8 },
-    menuText: { fontSize: 13, color: '#A1A1AA', fontWeight: '500' },
-    activeMenuText: { color: '#09090B', fontWeight: '700' },
+    menuItem: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%', paddingVertical: 10 },
+    menuText: { fontSize: 15, color: '#636363', fontWeight: '600' },
+    activeMenuText: { color: '#09090B', fontWeight: '800' },
     gpsButton: {
         position: 'absolute',
         bottom: 108,
         right: 16,
-        width: 44,
-        height: 44,
-        borderRadius: 10,
+        width: 56,
+        height: 56,
+        borderRadius: 14,
         backgroundColor: '#18181B',
         justifyContent: 'center',
         alignItems: 'center',
@@ -7826,7 +7836,7 @@ const styles = StyleSheet.create({
         elevation: 5,
         zIndex: 11,
     },
-    gpsButtonText: { fontSize: 11, color: '#FAFAFA', fontWeight: '600', letterSpacing: -0.3 },
+    gpsButtonText: { fontSize: 14, color: '#FAFAFA', fontWeight: '700', letterSpacing: -0.3 },
     mapTypeContainer: {
         position: 'absolute',
         top: 62,
@@ -7846,13 +7856,13 @@ const styles = StyleSheet.create({
         zIndex: 39,
     },
     tabButton: {
-        paddingVertical: 7,
-        paddingHorizontal: 16,
+        paddingVertical: 10,
+        paddingHorizontal: 18,
         backgroundColor: '#FFFFFF',
     },
     activeTabButton: { backgroundColor: '#18181B' },
-    tabButtonText: { fontSize: 12, color: '#71717A', fontWeight: '500' },
-    activeTabButtonText: { color: '#FFFFFF', fontWeight: '600' },
+    tabButtonText: { fontSize: 14, color: '#525252', fontWeight: '600' },
+    activeTabButtonText: { color: '#FFFFFF', fontWeight: '700' },
 
     // 하단 패널
     bottomPanel: {
@@ -7892,43 +7902,49 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
     bottomPanelIconBtn: {
-        width: 34,
-        height: 34,
-        borderRadius: 8,
+        width: 44,
+        height: 44,
+        borderRadius: 10,
         backgroundColor: '#F4F4F5',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    bottomPanelIconText: { fontSize: 18 },
+    bottomPanelIconText: { fontSize: 20 },
     bottomPanelClose: {
-        padding: 6,
+        padding: 10,
     },
-    bottomPanelCloseText: { fontSize: 16, color: '#999' },
-    bottomPanelAddress: { fontSize: 14, color: '#18181B', fontWeight: '600', marginBottom: 4, letterSpacing: -0.2 },
-    bottomPanelCoord: { fontSize: 11, color: '#A1A1AA', marginBottom: 4, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+    bottomPanelCloseText: { fontSize: 20, color: '#525252', fontWeight: '600' },
+    bottomPanelAddress: { fontSize: 17, color: '#18181B', fontWeight: '700', marginBottom: 6, letterSpacing: -0.2 },
+    bottomPanelCoord: { fontSize: 13, color: '#737373', marginBottom: 4, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
     bottomPanelButtons: { flexDirection: 'row', gap: 8 },
     bottomPanelButton: {
         flex: 1,
-        paddingVertical: 10,
+        paddingVertical: 14,
         backgroundColor: '#4A90E2',
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: 'center',
+        minHeight: 48,
+        justifyContent: 'center',
     },
     bottomPanelButtonRoadview: {
-        paddingVertical: 10,
-        paddingHorizontal: 14,
+        paddingVertical: 14,
+        paddingHorizontal: 18,
         backgroundColor: '#18181B',
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: 'center',
+        minHeight: 48,
+        justifyContent: 'center',
     },
     bottomPanelButtonRegistry: {
         flex: 1,
-        paddingVertical: 10,
+        paddingVertical: 14,
         backgroundColor: '#18181B',
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: 'center',
+        minHeight: 48,
+        justifyContent: 'center',
     },
-    bottomPanelButtonText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500', textAlign: 'center' },
+    bottomPanelButtonText: { color: '#FAFAFA', fontSize: 15, fontWeight: '600', textAlign: 'center' },
 
     // 로딩 오버레이
     loadingOverlay: {
@@ -7947,10 +7963,10 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E4E4E7',
     },
-    loadingText: { fontSize: 14, color: '#18181B', textAlign: 'center', marginBottom: 16 },
-    progressBarContainer: { width: '100%', height: 4, backgroundColor: '#E4E4E7', borderRadius: 2, overflow: 'hidden' },
-    progressBar: { height: '100%', backgroundColor: '#18181B', borderRadius: 2 },
-    progressText: { fontSize: 11, color: '#A1A1AA', marginTop: 8 },
+    loadingText: { fontSize: 17, color: '#18181B', textAlign: 'center', marginBottom: 16, fontWeight: '500', lineHeight: 24 },
+    progressBarContainer: { width: '100%', height: 6, backgroundColor: '#E4E4E7', borderRadius: 3, overflow: 'hidden' },
+    progressBar: { height: '100%', backgroundColor: '#18181B', borderRadius: 3 },
+    progressText: { fontSize: 14, color: '#737373', marginTop: 8 },
 
     // 모달 (등기정보 Tilko)
     modalOverlay: {
@@ -7967,45 +7983,50 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#E4E4E7',
     },
-    modalTitle: { fontSize: 16, fontWeight: '600', color: '#18181B', marginBottom: 16, textAlign: 'center', letterSpacing: -0.3 },
-    modalLabel: { fontSize: 12, color: '#71717A', fontWeight: '500', marginBottom: 4 },
+    modalTitle: { fontSize: 19, fontWeight: '700', color: '#18181B', marginBottom: 18, textAlign: 'center', letterSpacing: -0.3 },
+    modalLabel: { fontSize: 15, color: '#525252', fontWeight: '600', marginBottom: 6 },
     modalInput: {
-        borderWidth: 1,
-        borderColor: '#E4E4E7',
-        borderRadius: 8,
-        padding: 10,
-        fontSize: 14,
-        marginBottom: 10,
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
+        borderRadius: 10,
+        padding: 14,
+        fontSize: 17,
+        marginBottom: 12,
         backgroundColor: '#fff',
+        minHeight: 48,
     },
     modalSearchButton: {
         backgroundColor: '#18181B',
-        paddingVertical: 12,
-        borderRadius: 8,
+        paddingVertical: 16,
+        borderRadius: 10,
         alignItems: 'center',
+        minHeight: 52,
+        justifyContent: 'center',
     },
-    modalSearchButtonText: { color: '#FAFAFA', fontWeight: '600', fontSize: 14 },
+    modalSearchButtonText: { color: '#FAFAFA', fontWeight: '700', fontSize: 17 },
     modalResultBox: {
         backgroundColor: '#F4F4F5',
-        borderRadius: 8,
-        padding: 14,
+        borderRadius: 10,
+        padding: 16,
         marginBottom: 16,
-        borderWidth: 1,
-        borderColor: '#E4E4E7',
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
     },
-    modalResultLabel: { fontSize: 11, color: '#71717A', fontWeight: '500', marginBottom: 2 },
-    modalResultValue: { fontSize: 14, color: '#18181B', fontWeight: '600', marginBottom: 10 },
-    modalErrorText: { fontSize: 13, color: '#DC2626', textAlign: 'center' },
+    modalResultLabel: { fontSize: 14, color: '#525252', fontWeight: '600', marginBottom: 4 },
+    modalResultValue: { fontSize: 17, color: '#18181B', fontWeight: '700', marginBottom: 10 },
+    modalErrorText: { fontSize: 16, color: '#C62828', textAlign: 'center', fontWeight: '600' },
     modalCloseButton: {
-        paddingVertical: 14,
+        paddingVertical: 16,
         backgroundColor: '#F4F4F5',
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: 'center',
         marginTop: 8,
-        borderWidth: 1,
-        borderColor: '#E4E4E7',
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
+        minHeight: 52,
+        justifyContent: 'center',
     },
-    modalCloseButtonText: { fontSize: 14, color: '#52525B', fontWeight: '500' },
+    modalCloseButtonText: { fontSize: 17, color: '#333333', fontWeight: '600' },
 
     // PropertyDetailModal
     propModalHeader: {
@@ -8014,13 +8035,13 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: 16,
     },
-    propModalTitle: { fontSize: 16, fontWeight: '600', color: '#18181B', flex: 1, marginRight: 10, letterSpacing: -0.3 },
+    propModalTitle: { fontSize: 19, fontWeight: '700', color: '#18181B', flex: 1, marginRight: 10, letterSpacing: -0.3 },
     statusBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 8,
     },
-    statusBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+    statusBadgeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     propSection: {
         backgroundColor: '#F4F4F5',
         borderRadius: 8,
@@ -8029,14 +8050,14 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E4E4E7',
     },
-    propSectionTitle: { fontSize: 13, fontWeight: '600', color: '#18181B', marginBottom: 10, letterSpacing: -0.2 },
+    propSectionTitle: { fontSize: 16, fontWeight: '700', color: '#18181B', marginBottom: 12, letterSpacing: -0.2 },
     propRow: {
         flexDirection: 'row',
-        marginBottom: 8,
+        marginBottom: 10,
         alignItems: 'flex-start',
     },
-    propLabel: { fontSize: 11, color: '#71717A', width: 80, flexShrink: 0, paddingTop: 2 },
-    propValue: { fontSize: 13, color: '#18181B', flex: 1, lineHeight: 20 },
+    propLabel: { fontSize: 14, color: '#525252', width: 90, flexShrink: 0, paddingTop: 2, fontWeight: '500' },
+    propValue: { fontSize: 16, color: '#18181B', flex: 1, lineHeight: 24 },
     statusGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -8044,19 +8065,22 @@ const styles = StyleSheet.create({
         marginBottom: 14,
     },
     statusChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 7,
-        borderRadius: 6,
-        borderWidth: 1,
-    },
-    statusChipText: { fontSize: 12, fontWeight: '500' },
-    memoInput: {
-        borderWidth: 1,
-        borderColor: '#E4E4E7',
+        paddingHorizontal: 18,
+        paddingVertical: 10,
         borderRadius: 8,
-        padding: 10,
-        fontSize: 14,
-        minHeight: 80,
+        borderWidth: 1.5,
+        minHeight: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    statusChipText: { fontSize: 15, fontWeight: '600' },
+    memoInput: {
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
+        borderRadius: 10,
+        padding: 14,
+        fontSize: 17,
+        minHeight: 100,
         backgroundColor: '#fff',
     },
     propModalButtons: {
@@ -8079,35 +8103,41 @@ const styles = StyleSheet.create({
         borderBottomColor: '#E4E4E7',
     },
     exportButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
         backgroundColor: '#18181B',
-        borderRadius: 6,
+        borderRadius: 8,
+        minHeight: 44,
+        justifyContent: 'center',
     },
     exportButtonText: {
         color: '#FAFAFA',
-        fontSize: 11,
-        fontWeight: '500',
+        fontSize: 14,
+        fontWeight: '600',
     },
 
     propCancelButton: {
         flex: 1,
-        paddingVertical: 12,
+        paddingVertical: 16,
         backgroundColor: '#F4F4F5',
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#E4E4E7',
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
+        minHeight: 52,
+        justifyContent: 'center',
     },
-    propCancelButtonText: { fontSize: 14, color: '#52525B', fontWeight: '500' },
+    propCancelButtonText: { fontSize: 17, color: '#333333', fontWeight: '600' },
     propSaveButton: {
         flex: 2,
-        paddingVertical: 12,
+        paddingVertical: 16,
         backgroundColor: '#18181B',
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: 'center',
+        minHeight: 52,
+        justifyContent: 'center',
     },
-    propSaveButtonText: { fontSize: 14, color: '#FAFAFA', fontWeight: '600' },
+    propSaveButtonText: { fontSize: 17, color: '#FAFAFA', fontWeight: '700' },
 
     // 리스트 화면
     listContainer: { flex: 1, backgroundColor: '#FAFAFA' },
@@ -8119,65 +8149,70 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#E4E4E7',
     },
-    listTitle: { fontSize: 14, fontWeight: '600', color: '#18181B', letterSpacing: -0.2 },
-    refreshText: { fontSize: 13, color: '#52525B' },
+    listTitle: { fontSize: 17, fontWeight: '700', color: '#18181B', letterSpacing: -0.2 },
+    refreshText: { fontSize: 15, color: '#333333' },
     listItemContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F4F4F5',
+        borderBottomWidth: 2,
+        borderBottomColor: '#EBEBEB',
+        minHeight: 72,
     },
     listItem: { flex: 1, padding: 16 },
-    itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-    itemName: { fontSize: 14, fontWeight: '600', color: '#18181B', flex: 1, letterSpacing: -0.2 },
-    itemDistance: { fontSize: 11, color: '#A1A1AA', marginLeft: 8 },
-    itemAddress: { fontSize: 12, color: '#71717A', marginTop: 2 },
-    itemDate: { fontSize: 11, color: '#A1A1AA', marginTop: 2 },
+    itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+    itemName: { fontSize: 17, fontWeight: '700', color: '#18181B', flex: 1, letterSpacing: -0.2 },
+    itemDistance: { fontSize: 14, color: '#737373', marginLeft: 8 },
+    itemAddress: { fontSize: 15, color: '#525252', marginTop: 4 },
+    itemDate: { fontSize: 13, color: '#737373', marginTop: 4 },
     categoryBadge: {
         alignSelf: 'flex-start',
         backgroundColor: '#F4F4F5',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 4,
-        marginBottom: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 6,
+        marginBottom: 6,
         borderWidth: 1,
-        borderColor: '#E4E4E7',
+        borderColor: '#BFBFBF',
     },
-    categoryBadgeText: { fontSize: 10, color: '#52525B', fontWeight: '500' },
+    categoryBadgeText: { fontSize: 13, color: '#333333', fontWeight: '600' },
     listItemActions: {
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingRight: 12,
-        gap: 8,
+        paddingRight: 14,
+        gap: 10,
     },
     listItemIconBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 8,
+        width: 44,
+        height: 44,
+        borderRadius: 10,
         backgroundColor: '#F4F4F5',
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#E4E4E7',
+        borderColor: '#BFBFBF',
     },
-    listItemIconText: { fontSize: 16 },
+    listItemIconText: { fontSize: 20 },
     moveButton: {
         flex: 1,
-        paddingVertical: 8,
+        paddingVertical: 12,
         backgroundColor: '#18181B',
-        borderRadius: 6,
+        borderRadius: 8,
         alignItems: 'center',
+        minHeight: 44,
+        justifyContent: 'center',
     },
-    moveButtonText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500' },
+    moveButtonText: { color: '#FAFAFA', fontSize: 15, fontWeight: '600' },
     favoriteButton: {
         flex: 1,
-        paddingVertical: 8,
+        paddingVertical: 12,
         backgroundColor: '#18181B',
-        borderRadius: 6,
+        borderRadius: 8,
         alignItems: 'center',
+        minHeight: 44,
+        justifyContent: 'center',
     },
-    favoriteButtonText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500' },
+    favoriteButtonText: { color: '#FAFAFA', fontSize: 15, fontWeight: '600' },
 
     // 서브 화면
     subScreenContainer: { flex: 1, backgroundColor: '#FAFAFA' },
@@ -8189,57 +8224,63 @@ const styles = StyleSheet.create({
         borderBottomWidth: 1,
         borderBottomColor: '#E4E4E7',
     },
-    subScreenTitle: { fontSize: 16, fontWeight: '600', color: '#18181B', letterSpacing: -0.3 },
-    backButton: { padding: 4 },
-    backButtonText: { fontSize: 14, color: '#52525B' },
+    subScreenTitle: { fontSize: 19, fontWeight: '700', color: '#18181B', letterSpacing: -0.3 },
+    backButton: { padding: 8, minWidth: 48, minHeight: 48, justifyContent: 'center' },
+    backButtonText: { fontSize: 17, color: '#333333', fontWeight: '500' },
     searchContainer: {
         flexDirection: 'row',
         padding: 12,
-        gap: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E4E4E7',
+        gap: 10,
+        borderBottomWidth: 1.5,
+        borderBottomColor: '#BFBFBF',
     },
     searchInput: {
         flex: 1,
-        borderWidth: 1,
-        borderColor: '#E4E4E7',
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        fontSize: 14,
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
+        borderRadius: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        fontSize: 17,
         backgroundColor: '#fff',
+        minHeight: 48,
     },
     searchButton: {
         backgroundColor: '#18181B',
-        paddingHorizontal: 16,
-        borderRadius: 8,
+        paddingHorizontal: 20,
+        borderRadius: 10,
         justifyContent: 'center',
+        minHeight: 48,
     },
-    searchButtonText: { color: '#FAFAFA', fontWeight: '500', fontSize: 13 },
-    clearButton: { padding: 8, justifyContent: 'center' },
-    clearButtonText: { color: '#A1A1AA', fontSize: 13 },
+    searchButtonText: { color: '#FAFAFA', fontWeight: '600', fontSize: 16 },
+    clearButton: { padding: 12, justifyContent: 'center', minWidth: 44, minHeight: 44 },
+    clearButtonText: { color: '#636363', fontSize: 16, fontWeight: '600' },
     viewLocationButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
         marginRight: 8,
         backgroundColor: '#18181B',
-        borderRadius: 6,
+        borderRadius: 8,
+        minHeight: 44,
+        justifyContent: 'center',
     },
-    viewLocationButtonText: { color: '#FAFAFA', fontSize: 12, fontWeight: '500' },
+    viewLocationButtonText: { color: '#FAFAFA', fontSize: 15, fontWeight: '600' },
 
     // 다음 주소검색
     daumSearchButton: {
         marginHorizontal: 12,
         marginTop: 12,
         marginBottom: 4,
-        paddingVertical: 12,
+        paddingVertical: 16,
         backgroundColor: '#18181B',
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: 'center',
+        minHeight: 52,
+        justifyContent: 'center',
     },
     daumSearchButtonText: {
-        fontSize: 14,
-        fontWeight: '500',
+        fontSize: 17,
+        fontWeight: '700',
         color: '#FAFAFA',
     },
     daumModalHeader: {
@@ -8263,15 +8304,17 @@ const styles = StyleSheet.create({
 
     // 위치 버튼 (검색결과 옆)
     locationButton: {
-        paddingHorizontal: 10,
-        paddingVertical: 10,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
         marginRight: 10,
         backgroundColor: '#18181B',
-        borderRadius: 6,
+        borderRadius: 8,
         minWidth: 62,
+        minHeight: 44,
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    locationButtonText: { color: '#FAFAFA', fontSize: 11, fontWeight: '500', textAlign: 'center', lineHeight: 17 },
+    locationButtonText: { color: '#FAFAFA', fontSize: 15, fontWeight: '600', textAlign: 'center', lineHeight: 20 },
 
     // 다음 주소검색 확인 카드
     pendingCard: {
@@ -8291,64 +8334,70 @@ const styles = StyleSheet.create({
         paddingVertical: 3,
         marginBottom: 8,
     },
-    pendingCardBadgeText: { color: '#FAFAFA', fontSize: 10, fontWeight: '600' },
-    pendingCardName: { fontSize: 14, fontWeight: '600', color: '#18181B', marginBottom: 4, letterSpacing: -0.2 },
-    pendingCardAddress: { fontSize: 12, color: '#71717A', marginBottom: 4 },
-    pendingCardCoord: { fontSize: 10, color: '#A1A1AA', marginBottom: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+    pendingCardBadgeText: { color: '#FAFAFA', fontSize: 13, fontWeight: '600' },
+    pendingCardName: { fontSize: 17, fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.2 },
+    pendingCardAddress: { fontSize: 15, color: '#525252', marginBottom: 4 },
+    pendingCardCoord: { fontSize: 13, color: '#737373', marginBottom: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
     pendingCardButtons: { flexDirection: 'row', gap: 10 },
     pendingCancelButton: {
         flex: 1,
-        paddingVertical: 10,
+        paddingVertical: 14,
         backgroundColor: '#F4F4F5',
-        borderRadius: 6,
+        borderRadius: 8,
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#E4E4E7',
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
+        minHeight: 48,
+        justifyContent: 'center',
     },
-    pendingCancelButtonText: { fontSize: 13, color: '#52525B', fontWeight: '500' },
+    pendingCancelButtonText: { fontSize: 16, color: '#333333', fontWeight: '600' },
     pendingConfirmButton: {
         flex: 2,
-        paddingVertical: 10,
+        paddingVertical: 14,
         backgroundColor: '#18181B',
-        borderRadius: 6,
+        borderRadius: 8,
         alignItems: 'center',
+        minHeight: 48,
+        justifyContent: 'center',
     },
-    pendingConfirmButtonText: { fontSize: 13, color: '#FAFAFA', fontWeight: '600' },
-    deleteButton: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#18181B', borderRadius: 6, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-    deleteButtonText: { fontSize: 12, color: '#FAFAFA', fontWeight: '600' },
+    pendingConfirmButtonText: { fontSize: 16, color: '#FAFAFA', fontWeight: '700' },
+    deleteButton: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#18181B', borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginLeft: 8, minHeight: 44 },
+    deleteButtonText: { fontSize: 15, color: '#FAFAFA', fontWeight: '600' },
     emptyContainer: { padding: 40, alignItems: 'center' },
-    emptyText: { fontSize: 13, color: '#A1A1AA', textAlign: 'center', lineHeight: 22 },
+    emptyText: { fontSize: 16, color: '#737373', textAlign: 'center', lineHeight: 26 },
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
     // 더보기 메뉴
     menuContainer: { flex: 1, padding: 16, gap: 8, backgroundColor: '#FAFAFA' },
     menuButton: {
-        padding: 16,
+        padding: 18,
         backgroundColor: '#fff',
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#E4E4E7',
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderColor: '#BFBFBF',
+        minHeight: 56,
+        justifyContent: 'center',
     },
-    menuButtonText: { fontSize: 14, color: '#18181B', fontWeight: '500' },
+    menuButtonText: { fontSize: 17, color: '#18181B', fontWeight: '600' },
 
     // 등기 조회내역 배지
     registryOwnerBadge: {
         backgroundColor: '#F4F4F5',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 6,
         borderWidth: 1,
-        borderColor: '#E4E4E7',
+        borderColor: '#BFBFBF',
     },
-    registryOwnerBadgeText: { fontSize: 10, color: '#18181B', fontWeight: '600' },
+    registryOwnerBadgeText: { fontSize: 13, color: '#18181B', fontWeight: '600' },
     registryUnknownBadge: {
         backgroundColor: '#F4F4F5',
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 4,
     },
-    registryUnknownBadgeText: { fontSize: 10, color: '#A1A1AA' },
-    registryOwnerAddr: { fontSize: 11, color: '#71717A', marginBottom: 2 },
+    registryUnknownBadgeText: { fontSize: 13, color: '#737373' },
+    registryOwnerAddr: { fontSize: 14, color: '#525252', marginBottom: 2 },
 
     // 스켈레톤
     skeletonBox: {
