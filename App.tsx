@@ -6442,9 +6442,10 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
     const { elderlyMode, tilkoBalance, setTilkoBalance, fontSizeLevel, simpleMode, balanceError } = useMapStore();
     const fs = FONT_SCALE_LEVELS[fontSizeLevel] || FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
-    type MoreView = 'menu' | 'recent' | 'favorites' | 'registry' | 'settings' | 'improvements' | 'stats' | 'notifications' | 'reminders' | 'activity' | 'buildings' | 'places';
+    type MoreView = 'menu' | 'recent' | 'favorites' | 'registry' | 'settings' | 'improvements' | 'stats' | 'notifications' | 'reminders' | 'activity' | 'buildings' | 'places' | 'sales';
     const [currentView, setCurrentView] = useState<MoreView>('menu');
     const [balanceLoading, setBalanceLoading] = useState(false);
+    const [balanceVisible, setBalanceVisible] = useState(false);
 
     const handleRefreshBalance = useCallback(async () => {
         setBalanceLoading(true);
@@ -6473,65 +6474,110 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
             onOpenProperty={onOpenProperty}
         />
     );
+    // 영업 화면: 모아보기 카드를 독립 화면으로
+    if (currentView === 'sales') return (
+        <View style={styles.subScreenContainer}>
+            <View style={styles.subScreenHeader}>
+                <TouchableOpacity onPress={() => { hapticFeedback(); setCurrentView('menu'); }} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
+                    <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'← 뒤로'}</Text>
+                </TouchableOpacity>
+                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>영업 정보</Text>
+                <View style={{ width: 50 }} />
+            </View>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+                <MoabogiCards
+                    onMoveToMap={onMoveToMap}
+                    onShowRegistry={() => setCurrentView('registry')}
+                    onShowFavorites={() => setCurrentView('favorites')}
+                    onShowPlaces={() => setCurrentView('places')}
+                    onShowNotifications={() => setCurrentView('notifications')}
+                    onShowReminders={() => setCurrentView('reminders')}
+                    onShowActivity={() => setCurrentView('activity')}
+                    onShowStats={() => setCurrentView('stats')}
+                    onShowBuildings={() => setCurrentView('buildings')}
+                />
+            </ScrollView>
+        </View>
+    );
     return (
         <ScrollView style={{ flex: 1, backgroundColor: '#FAFAFA' }} contentContainerStyle={{ padding: 16, paddingBottom: 130, gap: 8 }}>
-            {/* 모아보기 섹션 */}
-            <Text style={{ fontSize: fs.lg, fontWeight: '700', color: '#18181B', marginTop: 8, marginBottom: 4 }}>모아보기</Text>
-            <MoabogiCards
-                onMoveToMap={onMoveToMap}
-                onShowRegistry={() => setCurrentView('registry')}
-                onShowFavorites={() => setCurrentView('favorites')}
-                onShowPlaces={() => setCurrentView('places')}
-                onShowNotifications={() => setCurrentView('notifications')}
-                onShowReminders={() => setCurrentView('reminders')}
-                onShowActivity={() => setCurrentView('activity')}
-                onShowStats={() => setCurrentView('stats')}
-                onShowBuildings={() => setCurrentView('buildings')}
-            />
-            <View style={{ height: 1, backgroundColor: '#E4E4E7', marginVertical: 4 }} />
-            {/* 틸코 잔액 카드 - 간편 모드에서 숨김 */}
-            {!simpleMode && <View style={{
-                backgroundColor: tilkoBalance !== null && tilkoBalance < 5 ? '#FEF2F2' : '#F4F4F5',
-                borderRadius: 12, marginHorizontal: 16, marginBottom: 8,
-                padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                borderWidth: tilkoBalance !== null && tilkoBalance < 5 ? 1 : 0,
-                borderColor: '#FCA5A5',
-            }}>
-                <View>
-                    <Text style={{ fontSize: fs.xs, color: '#525252', marginBottom: 2 }}>틸코 API 포인트 잔액</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                        {balanceError ? (
-                            <Text style={{ fontSize: fs.base, color: '#DC2626' }}>잔액조회 중 문제가 생겼습니다</Text>
-                        ) : tilkoBalance !== null ? (
-                            <>
-                                <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: tilkoBalance < 5 ? '#DC2626' : '#18181B' }}>
-                                    {tilkoBalance.toLocaleString()}
-                                </Text>
-                                <Text style={{ fontSize: fs.sm, color: '#525252' }}>P</Text>
-                                {tilkoBalance < 5 && (
-                                    <Text style={{ fontSize: fs.sm, color: '#DC2626', fontWeight: '600' }}>⚠ 잔액 부족</Text>
-                                )}
-                            </>
-                        ) : (
-                            <Text style={{ fontSize: fs.base, color: '#737373' }}>조회 중...</Text>
-                        )}
-                    </View>
+            {/* 틸코 잔액 조회 - 버튼만 먼저 표시 */}
+            {!simpleMode && (
+                <View style={{
+                    backgroundColor: '#F4F4F5',
+                    borderRadius: 12,
+                    padding: 14,
+                    marginBottom: 4,
+                }}>
+                    {!balanceVisible ? (
+                        /* 잔액 조회 버튼만 표시 */
+                        <TouchableOpacity
+                            onPress={() => {
+                                setBalanceVisible(true);
+                                handleRefreshBalance();
+                            }}
+                            style={{
+                                backgroundColor: '#18181B',
+                                borderRadius: 10,
+                                paddingVertical: elderlyMode ? 16 : 12,
+                                alignItems: 'center',
+                            }}
+                            accessibilityLabel="등기 조회 잔액 확인"
+                            accessibilityRole="button"
+                        >
+                            <Text style={{ color: '#fff', fontSize: fs.lg, fontWeight: '700' }}>등기 조회 잔액 확인</Text>
+                        </TouchableOpacity>
+                    ) : balanceLoading ? (
+                        /* 스켈레톤 로딩 */
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <View>
+                                <SkeletonBox width={120} height={14} style={{ marginBottom: 8 }} />
+                                <SkeletonBox width={80} height={28} />
+                            </View>
+                            <SkeletonBox width={72} height={34} style={{ borderRadius: 8 }} />
+                        </View>
+                    ) : (
+                        /* 잔액 결과 표시 */
+                        <View style={{
+                            ...(tilkoBalance !== null && tilkoBalance < 5 ? { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 12, padding: 14, margin: -14 } : {}),
+                        }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <View>
+                                    <Text style={{ fontSize: fs.sm, color: '#525252', marginBottom: 4 }}>등기 조회 잔액</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                                        {balanceError ? (
+                                            <Text style={{ fontSize: fs.base, color: '#DC2626' }}>잔액조회 중 문제가 생겼습니다</Text>
+                                        ) : tilkoBalance !== null ? (
+                                            <>
+                                                <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: tilkoBalance < 5 ? '#DC2626' : '#18181B' }}>
+                                                    {tilkoBalance.toLocaleString()}
+                                                </Text>
+                                                <Text style={{ fontSize: fs.sm, color: '#525252' }}>P</Text>
+                                                {tilkoBalance < 5 && (
+                                                    <Text style={{ fontSize: fs.sm, color: '#DC2626', fontWeight: '600' }}>잔액 부족</Text>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <Text style={{ fontSize: fs.base, color: '#DC2626' }}>잔액조회 중 문제가 생겼습니다</Text>
+                                        )}
+                                    </View>
+                                </View>
+                                <TouchableOpacity
+                                    onPress={handleRefreshBalance}
+                                    disabled={balanceLoading}
+                                    style={{ backgroundColor: '#18181B', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 }}
+                                    accessibilityLabel="잔액 새로고침"
+                                    accessibilityRole="button"
+                                >
+                                    <Text style={{ fontSize: fs.sm, color: '#fff', fontWeight: '600' }}>새로고침</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
                 </View>
-                <TouchableOpacity
-                    onPress={handleRefreshBalance}
-                    disabled={balanceLoading}
-                    style={{ backgroundColor: '#18181B', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
-                    accessibilityLabel="잔액 새로고침"
-                    accessibilityRole="button"
-                >
-                    {balanceLoading
-                        ? <ActivityIndicator size="small" color="#fff" />
-                        : <Text style={{ fontSize: fs.sm, color: '#fff', fontWeight: '600' }}>새로고침</Text>
-                    }
-                </TouchableOpacity>
-            </View>}
+            )}
 
-            {/* 간편 모드: 핵심 메뉴만 표시 */}
+            {/* 메뉴 목록 */}
             <TouchableOpacity
                 style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
                 onPress={() => { hapticFeedback(); setCurrentView('recent'); }}
@@ -6551,6 +6597,14 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
 
             {!simpleMode && (
                 <>
+                    <TouchableOpacity
+                        style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
+                        onPress={() => { hapticFeedback(); setCurrentView('sales'); }}
+                        accessibilityLabel="영업 정보 화면으로 이동"
+                        accessibilityRole="button"
+                    >
+                        <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>영업</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
                         onPress={() => { hapticFeedback(); setCurrentView('stats'); }}
