@@ -728,9 +728,47 @@ const useMapStore = create<MapStore>((set, get) => ({
 // ===== Tilko API 함수 =====
 
 /**
- * Tilko API 포인트 잔액 조회
- * GetPublicKey 응답의 PointBalance 필드 사용 (별도 엔드포인트 없음)
- * @returns 잔액(포인트) or null(오류/미인증)
+ * Supabase tilko_balance 테이블에서 잔액 조회
+ */
+async function fetchTilkoBalanceFromDB(): Promise<number | null> {
+    try {
+        const { data, error } = await supabase
+            .from('tilko_balance')
+            .select('balance, updated_at')
+            .eq('id', 1)
+            .single();
+        if (error || !data) return null;
+        return typeof data.balance === 'number' ? data.balance : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Supabase tilko_balance 테이블에 잔액 저장 + 사용이력 기록
+ */
+async function updateTilkoBalanceInDB(
+    balanceAfter: number,
+    action: string = 'refresh',
+    balanceBefore?: number
+): Promise<void> {
+    try {
+        await supabase
+            .from('tilko_balance')
+            .upsert({ id: 1, balance: balanceAfter, updated_at: new Date().toISOString() });
+        await supabase.from('tilko_usage_logs').insert({
+            action,
+            balance_before: balanceBefore ?? null,
+            balance_after: balanceAfter,
+        });
+    } catch {
+        // DB 저장 실패 시 무시 (잔액 조회 자체는 성공)
+    }
+}
+
+/**
+ * Tilko API 포인트 잔액 직접 조회 (GetPublicKey 응답의 PointBalance 필드)
+ * → 결과를 DB에 저장하고 반환
  */
 async function fetchTilkoBalance(): Promise<number | null> {
     const controller = new AbortController();
@@ -743,7 +781,10 @@ async function fetchTilkoBalance(): Promise<number | null> {
         if (!res.ok) return null;
         const json = await res.json();
         const balance = json.PointBalance;
-        if (typeof balance === 'number') return balance;
+        if (typeof balance === 'number') {
+            await updateTilkoBalanceInDB(balance, 'api_refresh');
+            return balance;
+        }
         return null;
     } catch {
         return null;
@@ -797,6 +838,12 @@ async function createTilkoEncryption() {
         : '-----BEGIN PUBLIC KEY-----\n' + pubKeyRaw + '\n-----END PUBLIC KEY-----';
     const publicKey = forge.pki.publicKeyFromPem(pemKey);
     const encAesKey = forge.util.encode64(publicKey.encrypt(aesKey, 'RSAES-PKCS1-V1_5'));
+
+    // GetPublicKey 호출 시점의 잔액을 DB에 미리 저장 (등기 조회 전 잔액)
+    if (pointBalance !== null) {
+        updateTilkoBalanceInDB(pointBalance, 'pre_registry').catch(() => {});
+        useMapStore.getState().setTilkoBalance(pointBalance);
+    }
 
     return { encryptAES, encAesKey, pointBalance };
 }
@@ -2581,7 +2628,10 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
             setResult({ owner: info.owner, address: info.address });
             setXmlData(info.xmlData || '');
             setStatus('');
-            if (info.pointBalance !== null) useMapStore.getState().setTilkoBalance(info.pointBalance);
+            if (info.pointBalance !== null) {
+                useMapStore.getState().setTilkoBalance(info.pointBalance);
+                updateTilkoBalanceInDB(info.pointBalance, 'post_registry').catch(() => {});
+            }
             if (marker) {
                 await saveRegistryCache(marker.latitude, marker.longitude, {
                     pnu: pnu || '',
@@ -2654,7 +2704,10 @@ const RegistryInfoModal = ({ visible, onClose, marker }: {
             setResult({ owner: info.owner, address: info.address });
             setXmlData(info.xmlData || '');
             setStatus('');
-            if (info.pointBalance !== null) useMapStore.getState().setTilkoBalance(info.pointBalance);
+            if (info.pointBalance !== null) {
+                useMapStore.getState().setTilkoBalance(info.pointBalance);
+                updateTilkoBalanceInDB(info.pointBalance, 'post_registry').catch(() => {});
+            }
             await saveRegistryCache(marker.latitude, marker.longitude, {
                 pnu: pnuResult.pnu,
                 jibunAddr: pnuResult.jibunAddr,
@@ -3075,7 +3128,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                 <TouchableOpacity onPress={onBack} style={styles.backButton} accessibilityLabel="뒤로 가기" accessibilityRole="button">
                     <Text style={[styles.backButtonText, { fontSize: fs.lg }]}>{'< 뒤로'}</Text>
                 </TouchableOpacity>
-                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>장소 검색</Text>
+                <Text style={[styles.subScreenTitle, { fontSize: fs['2xl'] }]}>검색하여 선택</Text>
                 <View style={{ width: 50 }} />
             </View>
 
@@ -3086,7 +3139,7 @@ const PlaceSearchScreen = ({ onBack, onMoveToMap }: { onBack: () => void; onMove
                 accessibilityLabel="다음 주소 검색 열기"
                 accessibilityRole="button"
             >
-                <Text style={[styles.daumSearchButtonText, { fontSize: fs.lg }]}>다음 주소 검색</Text>
+                <Text style={[styles.daumSearchButtonText, { fontSize: fs.lg }]}>주소검색</Text>
             </TouchableOpacity>
 
             {/* 장소명 검색 */}
@@ -4319,19 +4372,16 @@ const MoabogiCards = ({ onMoveToMap, onShowRegistry, onShowFavorites, onShowPlac
 
     return (
         <View style={{ backgroundColor: '#FAFAFA' }}>
-            <View style={{ marginBottom: 16, marginTop: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <Text style={{ fontSize: fs['2xl'], fontWeight: '600', color: '#18181B', letterSpacing: -0.5 }}>모아보기</Text>
-                    <TouchableOpacity
-                        onPress={onShowNotifications}
-                        style={{ backgroundColor: unreadCount > 0 ? '#EF4444' : '#E4E4E7', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}
-                    >
-                        <Text style={{ color: unreadCount > 0 ? '#fff' : '#71717A', fontSize: fs.xs, fontWeight: '700' }}>
-                            알림 {unreadCount}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+            <View style={{ marginBottom: 16, marginTop: 4, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Text style={{ fontSize: fs.sm, color: '#71717A' }}>오늘도 좋은 영업 하세요</Text>
+                <TouchableOpacity
+                    onPress={onShowNotifications}
+                    style={{ backgroundColor: unreadCount > 0 ? '#EF4444' : '#E4E4E7', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 }}
+                >
+                    <Text style={{ color: unreadCount > 0 ? '#fff' : '#71717A', fontSize: fs.xs, fontWeight: '700' }}>
+                        🔔 알림 {unreadCount}
+                    </Text>
+                </TouchableOpacity>
             </View>
 
             {/* 빠른 액션 버튼 */}
@@ -4577,7 +4627,7 @@ const CITIES_PER_PAGE = 12;
 
 interface RegionSelectScreenProps {
     onBack: () => void;
-    onComplete: (province: string, city: string, lat: number, lng: number) => void;
+    onComplete: (province: string, city: string, lat: number, lng: number, zoom?: number) => void;
 }
 
 const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScreenProps) => {
@@ -4585,11 +4635,20 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
     const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
 
-    type Step = 'province' | 'city';
+    type Step = 'province' | 'city' | 'condition';
+    type ConditionType = 'urban' | 'industrial';
     const [step, setStep] = useState<Step>('province');
     const [selectedProvince, setSelectedProvince] = useState<string | null>(null);
     const [selectedCity, setSelectedCity] = useState<string | null>(null);
+    const [selectedCityCoords, setSelectedCityCoords] = useState<{ lat: number; lng: number } | null>(null);
     const [cityPage, setCityPage] = useState(0);
+
+    // Step 3 상태
+    const [selectedCondition, setSelectedCondition] = useState<ConditionType | null>(null);
+    type IndustrialItem = { id: string; name: string; lat: number; lng: number; address: string };
+    const [industrialList, setIndustrialList] = useState<IndustrialItem[]>([]);
+    const [loadingIndustrial, setLoadingIndustrial] = useState(false);
+    const [selectedIndustrial, setSelectedIndustrial] = useState<IndustrialItem | null>(null);
 
     // Supabase 데이터 상태
     const [provinces, setProvinces] = useState<{ name: string; short: string; lat: number; lng: number; id?: string }[]>(DEFAULT_PROVINCES);
@@ -4684,12 +4743,69 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
         if (!selectedProvince || !selectedCity) return;
         const cityData = cities.find(c => c.name === selectedCity);
         if (cityData) {
-            onComplete(selectedProvince, selectedCity, cityData.lat, cityData.lng);
+            setSelectedCityCoords({ lat: cityData.lat, lng: cityData.lng });
+            setSelectedCondition(null);
+            setIndustrialList([]);
+            setSelectedIndustrial(null);
+            setStep('condition');
         }
-    }, [selectedProvince, selectedCity, cities, onComplete]);
+    }, [selectedProvince, selectedCity, cities]);
+
+    const fetchIndustrialComplexes = useCallback(async (cityName: string) => {
+        setLoadingIndustrial(true);
+        setIndustrialList([]);
+        setSelectedIndustrial(null);
+        try {
+            const seen = new Set<string>();
+            const results: IndustrialItem[] = [];
+            for (const q of ['산업단지', '공업단지', '산단']) {
+                const url = `https://api.vworld.kr/req/search?service=search&request=search&version=2.0&crs=EPSG:4326&size=10&page=1&query=${encodeURIComponent(cityName + ' ' + q)}&type=place&format=json&key=${VWORLD_API_KEY}`;
+                const res = await fetch(url);
+                const json = await res.json();
+                if (json.response?.status === 'OK') {
+                    for (const item of (json.response?.result?.items || [])) {
+                        if (!seen.has(item.id)) {
+                            seen.add(item.id);
+                            results.push({
+                                id: item.id,
+                                name: item.title,
+                                lat: parseFloat(item.point.y),
+                                lng: parseFloat(item.point.x),
+                                address: item.address?.road || item.address?.parcel || '',
+                            });
+                        }
+                    }
+                }
+            }
+            setIndustrialList(results);
+        } catch {}
+        setLoadingIndustrial(false);
+    }, []);
+
+    const handleConditionSelect = useCallback((condition: ConditionType) => {
+        setSelectedCondition(prev => prev === condition ? null : condition);
+        setSelectedIndustrial(null);
+        if (condition !== selectedCondition && condition === 'industrial' && selectedCity) {
+            fetchIndustrialComplexes(selectedCity);
+        }
+    }, [selectedCondition, selectedCity, fetchIndustrialComplexes]);
+
+    const handleComplete = useCallback(() => {
+        if (!selectedCityCoords || !selectedCondition) return;
+        if (selectedCondition === 'urban') {
+            onComplete(selectedProvince!, selectedCity!, selectedCityCoords.lat, selectedCityCoords.lng, 0.05);
+        } else if (selectedIndustrial) {
+            onComplete(selectedProvince!, selectedCity!, selectedIndustrial.lat, selectedIndustrial.lng, 0.02);
+        }
+    }, [selectedCityCoords, selectedCondition, selectedIndustrial, selectedProvince, selectedCity, onComplete]);
 
     const handleBack = useCallback(() => {
-        if (step === 'city') {
+        if (step === 'condition') {
+            setStep('city');
+            setSelectedCondition(null);
+            setIndustrialList([]);
+            setSelectedIndustrial(null);
+        } else if (step === 'city') {
             setStep('province');
             setSelectedCity(null);
             setCities([]);
@@ -4720,21 +4836,19 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
             </View>
 
             {/* 스텝 인디케이터 */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 8 }}>
-                <View style={{
-                    width: 28, height: 28, borderRadius: 14, backgroundColor: '#18181B',
-                    alignItems: 'center', justifyContent: 'center',
-                }}>
-                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>1</Text>
-                </View>
-                <View style={{ width: 32, height: 2, backgroundColor: step === 'city' ? '#18181B' : '#E4E4E7' }} />
-                <View style={{
-                    width: 28, height: 28, borderRadius: 14,
-                    backgroundColor: step === 'city' ? '#18181B' : '#E4E4E7',
-                    alignItems: 'center', justifyContent: 'center',
-                }}>
-                    <Text style={{ color: step === 'city' ? '#fff' : '#A1A1AA', fontSize: 13, fontWeight: '700' }}>2</Text>
-                </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 16, gap: 6 }}>
+                {(['province', 'city', 'condition'] as const).map((s, i) => {
+                    const stepIndex = ['province', 'city', 'condition'].indexOf(step);
+                    const done = i <= stepIndex;
+                    return (
+                        <React.Fragment key={s}>
+                            {i > 0 && <View style={{ width: 28, height: 2, backgroundColor: done ? '#18181B' : '#E4E4E7' }} />}
+                            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: done ? '#18181B' : '#E4E4E7', alignItems: 'center', justifyContent: 'center' }}>
+                                <Text style={{ color: done ? '#fff' : '#A1A1AA', fontSize: 13, fontWeight: '700' }}>{i + 1}</Text>
+                            </View>
+                        </React.Fragment>
+                    );
+                })}
             </View>
 
             {/* 메인 콘텐츠 */}
@@ -4803,7 +4917,7 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                             </View>
                         )}
                     </>
-                ) : (
+                ) : step === 'city' ? (
                     <>
                         {/* Step 2: 상세 지역 선택 */}
                         <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
@@ -4915,6 +5029,99 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                             </View>
                         )}
                     </>
+                ) : (
+                    <>
+                        {/* Step 3: 영업 유형 선택 */}
+                        <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: '#18181B', marginBottom: 6, letterSpacing: -0.5 }}>
+                            영업 유형을 선택해주세요
+                        </Text>
+                        <Text style={{ fontSize: fs.sm, color: '#71717A', marginBottom: 8 }}>
+                            {selectedProvinceShort} {selectedCity}의 탐색 유형을 선택하세요
+                        </Text>
+
+                        <View style={{ backgroundColor: '#18181B', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6, alignSelf: 'flex-start', marginBottom: 20 }}>
+                            <Text style={{ color: '#FAFAFA', fontSize: fs.sm, fontWeight: '600' }}>{selectedProvinceShort} {selectedCity}</Text>
+                        </View>
+
+                        {/* 도심 / 산업단지 뱃지 */}
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 28 }}>
+                            {([
+                                { key: 'urban' as ConditionType, label: '🏙️ 도심' },
+                                { key: 'industrial' as ConditionType, label: '🏭 산업단지' },
+                            ]).map(({ key, label }) => {
+                                const isSel = selectedCondition === key;
+                                return (
+                                    <TouchableOpacity
+                                        key={key}
+                                        onPress={() => handleConditionSelect(key)}
+                                        style={{
+                                            paddingHorizontal: 20, paddingVertical: 13,
+                                            borderRadius: 20, borderWidth: 1.5,
+                                            borderColor: isSel ? '#18181B' : '#D4D4D8',
+                                            backgroundColor: isSel ? '#18181B' : '#fff',
+                                            elevation: isSel ? 3 : 1,
+                                            shadowColor: '#000', shadowOpacity: isSel ? 0.15 : 0.05,
+                                            shadowOffset: { width: 0, height: 1 }, shadowRadius: isSel ? 4 : 2,
+                                        }}
+                                        accessibilityRole="radio"
+                                        accessibilityState={{ checked: isSel }}
+                                    >
+                                        <Text style={{ fontSize: fs.base, fontWeight: isSel ? '700' : '500', color: isSel ? '#FAFAFA' : '#3F3F46' }}>
+                                            {label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        {/* 산업단지 목록 */}
+                        {selectedCondition === 'industrial' && (
+                            <>
+                                <Text style={{ fontSize: fs.base, fontWeight: '700', color: '#18181B', marginBottom: 12 }}>
+                                    {selectedCity} 산업단지 목록
+                                </Text>
+                                {loadingIndustrial ? (
+                                    <View style={{ alignItems: 'center', paddingVertical: 28 }}>
+                                        <ActivityIndicator size="small" color="#18181B" />
+                                        <Text style={{ marginTop: 8, color: '#71717A', fontSize: fs.sm }}>산업단지 조회 중...</Text>
+                                    </View>
+                                ) : industrialList.length === 0 ? (
+                                    <View style={{ alignItems: 'center', paddingVertical: 24, backgroundColor: '#F4F4F5', borderRadius: 12 }}>
+                                        <Text style={{ color: '#71717A', fontSize: fs.sm, textAlign: 'center' }}>
+                                            {'산업단지를 찾을 수 없습니다\n도심 탐색을 이용해주세요'}
+                                        </Text>
+                                    </View>
+                                ) : (
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                                        {industrialList.map(item => {
+                                            const isSel = selectedIndustrial?.id === item.id;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={item.id}
+                                                    onPress={() => setSelectedIndustrial(prev => prev?.id === item.id ? null : item)}
+                                                    style={{
+                                                        paddingHorizontal: 16, paddingVertical: 11,
+                                                        borderRadius: 10, borderWidth: 1.5,
+                                                        borderColor: isSel ? '#18181B' : '#D4D4D8',
+                                                        backgroundColor: isSel ? '#18181B' : '#fff',
+                                                        elevation: isSel ? 3 : 1,
+                                                        shadowColor: '#000', shadowOpacity: isSel ? 0.15 : 0.05,
+                                                        shadowOffset: { width: 0, height: 1 }, shadowRadius: isSel ? 4 : 2,
+                                                    }}
+                                                    accessibilityRole="radio"
+                                                    accessibilityState={{ checked: isSel }}
+                                                >
+                                                    <Text style={{ fontSize: fs.sm, fontWeight: isSel ? '700' : '500', color: isSel ? '#FAFAFA' : '#3F3F46' }}>
+                                                        {item.name}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                )}
+                            </>
+                        )}
+                    </>
                 )}
             </ScrollView>
 
@@ -4925,28 +5132,34 @@ const RegionSelectScreen = React.memo(({ onBack, onComplete }: RegionSelectScree
                 backgroundColor: '#FAFAFA',
                 borderTopWidth: 1, borderTopColor: '#E4E4E7',
             }}>
-                <TouchableOpacity
-                    onPress={step === 'province' ? handleNextFromProvince : handleNextFromCity}
-                    disabled={step === 'province' ? !selectedProvince : !selectedCity}
-                    style={{
-                        backgroundColor: (step === 'province' ? selectedProvince : selectedCity) ? '#18181B' : '#D4D4D8',
-                        borderRadius: 12, paddingVertical: 16, alignItems: 'center',
-                        elevation: (step === 'province' ? selectedProvince : selectedCity) ? 4 : 0,
-                        shadowColor: '#000',
-                        shadowOpacity: 0.15,
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowRadius: 6,
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={step === 'province' ? '다음 단계로' : '선택 완료'}
-                >
-                    <Text style={{
-                        fontSize: fs.lg, fontWeight: '700',
-                        color: (step === 'province' ? selectedProvince : selectedCity) ? '#FAFAFA' : '#A1A1AA',
-                    }}>
-                        {step === 'province' ? '다음' : '다음'}
-                    </Text>
-                </TouchableOpacity>
+                {(() => {
+                    const isCondStep = step === 'condition';
+                    const canProceed = step === 'province' ? !!selectedProvince
+                        : step === 'city' ? !!selectedCity
+                        : selectedCondition === 'urban' || (selectedCondition === 'industrial' && !!selectedIndustrial);
+                    const onPress = step === 'province' ? handleNextFromProvince
+                        : step === 'city' ? handleNextFromCity
+                        : handleComplete;
+                    const label = isCondStep ? '지도 보기' : '다음';
+                    return (
+                        <TouchableOpacity
+                            onPress={onPress}
+                            disabled={!canProceed}
+                            style={{
+                                backgroundColor: canProceed ? '#18181B' : '#D4D4D8',
+                                borderRadius: 12, paddingVertical: 16, alignItems: 'center',
+                                elevation: canProceed ? 4 : 0,
+                                shadowColor: '#000', shadowOpacity: 0.15,
+                                shadowOffset: { width: 0, height: 2 }, shadowRadius: 6,
+                            }}
+                            accessibilityRole="button"
+                        >
+                            <Text style={{ fontSize: fs.lg, fontWeight: '700', color: canProceed ? '#FAFAFA' : '#A1A1AA' }}>
+                                {label}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })()}
             </View>
         </View>
     );
@@ -5390,17 +5603,50 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
     const { elderlyMode, tilkoBalance, setTilkoBalance } = useMapStore();
     const fs = elderlyMode ? FONT_SCALE.elderly : FONT_SCALE.normal;
     const ts = elderlyMode ? TOUCH_SIZE.elderly : TOUCH_SIZE.normal;
-    type MoreView = 'menu' | 'search' | 'recent' | 'favorites' | 'registry' | 'settings' | 'improvements' | 'stats' | 'notifications' | 'reminders' | 'activity' | 'buildings' | 'places';
+    type MoreView = 'menu' | 'moabogi' | 'recent' | 'favorites' | 'registry' | 'settings' | 'improvements' | 'stats' | 'notifications' | 'reminders' | 'activity' | 'buildings' | 'places';
     const [currentView, setCurrentView] = useState<MoreView>('menu');
     const [balanceLoading, setBalanceLoading] = useState(false);
+    const [balanceUpdatedAt, setBalanceUpdatedAt] = useState<string | null>(null);
 
     const handleRefreshBalance = useCallback(async () => {
         setBalanceLoading(true);
-        const bal = await fetchTilkoBalance();
-        if (bal !== null) setTilkoBalance(bal);
-        setBalanceLoading(false);
+        try {
+            const { data } = await supabase
+                .from('tilko_balance')
+                .select('balance, updated_at')
+                .eq('id', 1)
+                .single();
+            if (data && typeof data.balance === 'number') {
+                setTilkoBalance(data.balance);
+                setBalanceUpdatedAt(data.updated_at ?? null);
+            }
+        } catch { /* ignore */ } finally {
+            setBalanceLoading(false);
+        }
     }, [setTilkoBalance]);
-    if (currentView === 'search') return <PlaceSearchScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
+    if (currentView === 'moabogi') return (
+        <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F4F4F5', backgroundColor: '#fff' }}>
+                <TouchableOpacity onPress={() => setCurrentView('menu')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginRight: 12 }}>
+                    <Text style={{ fontSize: 22, color: '#3F3F46' }}>{'←'}</Text>
+                </TouchableOpacity>
+                <Text style={{ fontSize: fs.lg, fontWeight: '700', color: '#18181B' }}>모아보기</Text>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 130 }}>
+                <MoabogiCards
+                    onMoveToMap={onMoveToMap}
+                    onShowRegistry={() => setCurrentView('registry')}
+                    onShowFavorites={() => setCurrentView('favorites')}
+                    onShowPlaces={() => setCurrentView('places')}
+                    onShowNotifications={() => setCurrentView('notifications')}
+                    onShowReminders={() => setCurrentView('reminders')}
+                    onShowActivity={() => setCurrentView('activity')}
+                    onShowStats={() => setCurrentView('stats')}
+                    onShowBuildings={() => setCurrentView('buildings')}
+                />
+            </ScrollView>
+        </View>
+    );
     if (currentView === 'recent') return <RecentPlacesScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'favorites') return <FavoritePlacesScreen onBack={() => setCurrentView('menu')} onMoveToMap={onMoveToMap} />;
     if (currentView === 'registry') return <RegistryHistoryScreen onBack={() => setCurrentView('menu')} />;
@@ -5419,60 +5665,66 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
     );
     return (
         <ScrollView style={{ flex: 1, backgroundColor: '#FAFAFA' }} contentContainerStyle={{ padding: 16, paddingBottom: 130, gap: 8 }}>
-            {/* 모아보기 섹션 */}
-            <Text style={{ fontSize: fs.lg, fontWeight: '700', color: '#18181B', marginTop: 8, marginBottom: 4 }}>모아보기</Text>
-            <MoabogiCards
-                onMoveToMap={onMoveToMap}
-                onShowRegistry={() => setCurrentView('registry')}
-                onShowFavorites={() => setCurrentView('favorites')}
-                onShowPlaces={() => setCurrentView('places')}
-                onShowNotifications={() => setCurrentView('notifications')}
-                onShowReminders={() => setCurrentView('reminders')}
-                onShowActivity={() => setCurrentView('activity')}
-                onShowStats={() => setCurrentView('stats')}
-                onShowBuildings={() => setCurrentView('buildings')}
-            />
+            <TouchableOpacity
+                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderLeftWidth: 4, borderLeftColor: '#18181B' }]}
+                onPress={() => setCurrentView('moabogi')}
+                accessibilityLabel="모아보기 화면으로 이동"
+                accessibilityRole="button"
+            >
+                <View>
+                    <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>모아보기</Text>
+                    <Text style={{ fontSize: fs.xs, color: '#71717A', marginTop: 2 }}>영업현황 · 즐겨찾기 · 장소관리 · 연락예정</Text>
+                </View>
+                <Text style={{ fontSize: 18, color: '#A1A1AA' }}>›</Text>
+            </TouchableOpacity>
             <View style={{ height: 1, backgroundColor: '#E4E4E7', marginVertical: 4 }} />
-            {/* 틸코 잔액 카드 (기존 유지) */}
-            <View style={{
             {/* 등기 잔액 카드 */}
             <View style={{
                 backgroundColor: tilkoBalance !== null && tilkoBalance < 5 ? '#FEF2F2' : '#F4F4F5',
-                borderRadius: 12, marginHorizontal: 16, marginBottom: 8,
-                padding: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                borderRadius: 12,
+                padding: 14,
                 borderWidth: tilkoBalance !== null && tilkoBalance < 5 ? 1 : 0,
                 borderColor: '#FCA5A5',
             }}>
-                <View>
-                    <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 2 }}>틸코 API 포인트 잔액</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                        {tilkoBalance !== null ? (
-                            <>
-                                <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: tilkoBalance < 5 ? '#DC2626' : '#18181B' }}>
-                                    {tilkoBalance.toLocaleString()}
-                                </Text>
-                                <Text style={{ fontSize: fs.sm, color: '#71717A' }}>P</Text>
-                                {tilkoBalance < 5 && (
-                                    <Text style={{ fontSize: fs.sm, color: '#DC2626', fontWeight: '600' }}>⚠ 잔액 부족</Text>
-                                )}
-                            </>
-                        ) : (
-                            <Text style={{ fontSize: fs.base, color: '#A1A1AA' }}>조회 중...</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: fs.xs, color: '#71717A', marginBottom: 2 }}>틸코 API 포인트 잔액</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
+                            {balanceLoading ? (
+                                <ActivityIndicator size="small" color="#18181B" style={{ marginVertical: 4 }} />
+                            ) : tilkoBalance !== null ? (
+                                <>
+                                    <Text style={{ fontSize: fs['2xl'], fontWeight: '700', color: tilkoBalance < 5 ? '#DC2626' : '#18181B' }}>
+                                        {tilkoBalance.toLocaleString()}
+                                    </Text>
+                                    <Text style={{ fontSize: fs.sm, color: '#71717A' }}>P</Text>
+                                    {tilkoBalance < 5 && (
+                                        <Text style={{ fontSize: fs.sm, color: '#DC2626', fontWeight: '600' }}>⚠ 잔액 부족</Text>
+                                    )}
+                                </>
+                            ) : (
+                                <Text style={{ fontSize: fs.base, color: '#A1A1AA' }}>미조회</Text>
+                            )}
+                        </View>
+                        {balanceUpdatedAt && !balanceLoading && (
+                            <Text style={{ fontSize: fs.xs, color: '#A1A1AA', marginTop: 4 }}>
+                                마지막 갱신: {new Date(balanceUpdatedAt).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </Text>
                         )}
                     </View>
+                    <TouchableOpacity
+                        onPress={handleRefreshBalance}
+                        disabled={balanceLoading}
+                        style={{ backgroundColor: '#18181B', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7, marginLeft: 12 }}
+                        accessibilityLabel="잔액 새로고침"
+                        accessibilityRole="button"
+                    >
+                        <Text style={{ fontSize: fs.sm, color: '#fff', fontWeight: '600' }}>잔액 조회</Text>
+                    </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                    onPress={handleRefreshBalance}
-                    disabled={balanceLoading}
-                    style={{ backgroundColor: '#18181B', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 }}
-                    accessibilityLabel="잔액 새로고침"
-                    accessibilityRole="button"
-                >
-                    {balanceLoading
-                        ? <ActivityIndicator size="small" color="#fff" />
-                        : <Text style={{ fontSize: fs.sm, color: '#fff', fontWeight: '600' }}>새로고침</Text>
-                    }
-                </TouchableOpacity>
+                <Text style={{ fontSize: fs.xs, color: '#A1A1AA', marginTop: 8 }}>
+                    * 등기 조회 시 자동 차감 및 갱신됩니다
+                </Text>
             </View>
 
             <TouchableOpacity
@@ -5482,14 +5734,6 @@ const MoreScreen = ({ onMoveToMap, onMoveToMapWithLocation, onOpenProperty }: {
                 accessibilityRole="button"
             >
                 <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>영업 통계</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-                style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
-                onPress={() => setCurrentView('search')}
-                accessibilityLabel="장소 검색 화면으로 이동"
-                accessibilityRole="button"
-            >
-                <Text style={[styles.menuButtonText, { fontSize: fs.xl }]}>장소 검색</Text>
             </TouchableOpacity>
             <TouchableOpacity
                 style={[styles.menuButton, { minHeight: ts.minHeight, padding: ts.padding }]}
@@ -6004,6 +6248,8 @@ function AppContent() {
                         shouldShowAlert: true,
                         shouldPlaySound: true,
                         shouldSetBadge: false,
+                        shouldShowBanner: true,
+                        shouldShowList: true,
                     }),
                 });
             } catch (_) {}
@@ -6106,9 +6352,9 @@ function AppContent() {
         }).catch(() => {});
     }, []);
 
-    // 앱 시작 시 Tilko 잔액 조회 (백그라운드)
+    // 앱 시작 시 Tilko 잔액 DB에서 불러오기 (백그라운드)
     useEffect(() => {
-        fetchTilkoBalance().then(bal => {
+        fetchTilkoBalanceFromDB().then(bal => {
             if (bal !== null) setTilkoBalance(bal);
         });
     }, []);
@@ -6130,8 +6376,9 @@ function AppContent() {
     const [mapSearchResults, setMapSearchResults] = useState<Building[]>([]);
     const [mapSearchLoading, setMapSearchLoading] = useState(false);
 
-    // 사용자 위치
+    // 사용자 위치 + heading
     const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+    const [userHeading, setUserHeading] = useState<number | null>(null);
     const lastRecordedPosRef = useRef<{ lat: number; lng: number } | null>(null);
 
     // 오프라인 감지 + 큐
@@ -6251,10 +6498,11 @@ function AppContent() {
                 const { status } = await Location.requestForegroundPermissionsAsync();
                 if (status !== 'granted') return;
                 sub = await Location.watchPositionAsync(
-                    { accuracy: Location.Accuracy.Balanced, timeInterval: 30000, distanceInterval: 150 },
+                    { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
                     (loc) => {
-                        const { latitude: lat, longitude: lng } = loc.coords;
+                        const { latitude: lat, longitude: lng, heading } = loc.coords;
                         setUserLocation({ latitude: lat, longitude: lng });
+                        if (heading !== null && heading >= 0) setUserHeading(heading);
                         if (!lastRecordedPosRef.current ||
                             haversineDistance(lastRecordedPosRef.current.lat, lastRecordedPosRef.current.lng, lat, lng) >= 150) {
                             lastRecordedPosRef.current = { lat, lng };
@@ -6371,7 +6619,10 @@ function AppContent() {
                                 || uniqueNoList[0];
                             if (!validItem?.uniqueNo) throw new Error('유효한 부동산 고유번호를 찾을 수 없습니다.');
                             const info = await fetchRegistryInfo(validItem.uniqueNo);
-                            if (info.pointBalance !== null) useMapStore.getState().setTilkoBalance(info.pointBalance);
+                            if (info.pointBalance !== null) {
+                useMapStore.getState().setTilkoBalance(info.pointBalance);
+                updateTilkoBalanceInDB(info.pointBalance, 'post_registry').catch(() => {});
+            }
                             await saveRegistryCache(selectedMarker.latitude, selectedMarker.longitude, {
                                 pnu: pnuResult.pnu,
                                 jibunAddr: pnuResult.jibunAddr,
@@ -6494,6 +6745,49 @@ function AppContent() {
         }
     }, [propertyMarkers, propertyClusters, region]);
 
+    // 항공뷰용 마커 (subtitle 포함)
+    const skyMarkersForMap = useMemo(() => {
+        const items: import('./KakaoSkyView').SkyMarkerItem[] = [];
+        if (clusteringEnabled && propertyClusters) {
+            propertyClusters.forEach(cluster => {
+                if (cluster.count === 1) {
+                    const prop = cluster.items[0];
+                    items.push({
+                        id: `prop-${prop.property_id}`,
+                        latitude: prop.lat,
+                        longitude: prop.lng,
+                        type: 'property',
+                        color: SALES_STATUS_COLORS[prop.sales_status] || '#9E9E9E',
+                        title: prop.building_name || prop.road_address || '매물',
+                        subtitle: prop.road_address || '',
+                    });
+                } else {
+                    items.push({
+                        id: `cluster-${cluster.id}`,
+                        latitude: cluster.coordinate.latitude,
+                        longitude: cluster.coordinate.longitude,
+                        type: 'cluster',
+                        count: cluster.count,
+                        color: SALES_STATUS_COLORS[cluster.dominantStatus] || '#9E9E9E',
+                    });
+                }
+            });
+        } else {
+            filteredPropertyMarkers.forEach(prop => {
+                items.push({
+                    id: `prop-${prop.property_id}`,
+                    latitude: prop.lat,
+                    longitude: prop.lng,
+                    type: 'property',
+                    color: SALES_STATUS_COLORS[prop.sales_status] || '#9E9E9E',
+                    title: prop.building_name || prop.road_address || '매물',
+                    subtitle: prop.road_address || '',
+                });
+            });
+        }
+        return items;
+    }, [filteredPropertyMarkers, propertyClusters, clusteringEnabled]);
+
     const allMarkersForMap = useMemo(() => {
         const items: import('./GoogleMapView').MapMarkerItem[] = [];
         if (clusteringEnabled && propertyClusters) {
@@ -6540,16 +6834,24 @@ function AppContent() {
                 return (
                     <HomeScreen
                         onSelectRegion={() => setCurrentTab('regionSelect')}
-                        onSelectSearch={() => setCurrentTab('map')}
+                        onSelectSearch={() => setCurrentTab('placeSearch')}
                         onSelectMap={() => setCurrentTab('map')}
+                    />
+                );
+            case 'placeSearch':
+                return (
+                    <PlaceSearchScreen
+                        onBack={() => setCurrentTab('home')}
+                        onMoveToMap={() => setCurrentTab('map')}
                     />
                 );
             case 'regionSelect':
                 return (
                     <RegionSelectScreen
                         onBack={() => setCurrentTab('home')}
-                        onComplete={(province, city, lat, lng) => {
-                            const newRegion = { latitude: lat, longitude: lng, latitudeDelta: 0.08, longitudeDelta: 0.08 };
+                        onComplete={(province, city, lat, lng, zoom) => {
+                            const latDelta = zoom ?? 0.08;
+                            const newRegion = { latitude: lat, longitude: lng, latitudeDelta: latDelta, longitudeDelta: latDelta };
                             setRegion(newRegion);
                             animateActiveMap(newRegion, 600);
                             const shortName = DEFAULT_PROVINCES.find(p => p.name === province)?.short || province;
@@ -6566,13 +6868,20 @@ function AppContent() {
                             <KakaoSkyView
                                 ref={kakaoSkyRef}
                                 style={styles.map}
+                                vworldApiKey={VWORLD_API_KEY}
                                 initialRegion={region}
                                 onRegionChangeComplete={(r) => setRegion(r)}
                                 onPress={handleMapPress}
                                 onMarkerPress={handleMarkerPress}
-                                selectedMarker={selectedMarker}
-                                markers={allMarkersForMap}
+                                selectedMarker={selectedMarker ? {
+                                    latitude: selectedMarker.latitude,
+                                    longitude: selectedMarker.longitude,
+                                    title: selectedMarker.name,
+                                    subtitle: selectedMarker.address,
+                                } : null}
+                                markers={skyMarkersForMap}
                                 userLocation={userLocation}
+                                heading={userHeading}
                                 onLoadProgress={handleMapLoadProgress}
                             />
                         ) : (
@@ -6588,6 +6897,7 @@ function AppContent() {
                                 selectedMarker={selectedMarker}
                                 markers={allMarkersForMap}
                                 userLocation={userLocation}
+                                heading={userHeading}
                                 onLoadProgress={handleMapLoadProgress}
                             />
                         )}
@@ -6643,58 +6953,10 @@ function AppContent() {
                         </View>
 
 
-                        {/* 플로팅 지도 검색바 */}
-                        <View style={{ position: 'absolute', top: 12, left: 12, right: 12, zIndex: 30 }} pointerEvents="box-none">
-                            <View style={{ backgroundColor: '#fff', borderRadius: 10, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, elevation: 6, shadowColor: '#000', shadowOpacity: 0.18, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6 }}>
-                                <Text style={{ color: '#A1A1AA', fontSize: 14, marginRight: 8 }}>Q</Text>
-                                <TextInput
-                                    style={{ flex: 1, fontSize: fs.base, color: '#18181B', paddingVertical: 0 }}
-                                    placeholder="지도에서 장소 검색..."
-                                    placeholderTextColor="#A1A1AA"
-                                    value={mapSearchText}
-                                    onChangeText={setMapSearchText}
-                                    onSubmitEditing={handleMapSearch}
-                                    returnKeyType="search"
-                                    blurOnSubmit={false}
-                                />
-                                {mapSearchLoading ? (
-                                    <ActivityIndicator size="small" color="#71717A" style={{ marginLeft: 6 }} />
-                                ) : mapSearchText.length > 0 ? (
-                                    <TouchableOpacity onPress={() => { setMapSearchText(''); setMapSearchResults([]); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                        <Text style={{ color: '#A1A1AA', fontSize: 16, marginLeft: 6 }}>×</Text>
-                                    </TouchableOpacity>
-                                ) : null}
-                            </View>
-                            {mapSearchResults.length > 0 && (
-                                <View style={{ backgroundColor: '#fff', borderRadius: 8, marginTop: 4, elevation: 6, shadowColor: '#000', shadowOpacity: 0.18, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6, maxHeight: 260, overflow: 'hidden' }}>
-                                    <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
-                                        {mapSearchResults.map((item, idx) => (
-                                            <TouchableOpacity
-                                                key={item.id}
-                                                style={{ paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: idx < mapSearchResults.length - 1 ? 1 : 0, borderBottomColor: '#F4F4F5' }}
-                                                onPress={() => {
-                                                    const newRegion = { latitude: item.latitude, longitude: item.longitude, latitudeDelta: 0.002, longitudeDelta: 0.002 };
-                                                    setRegion(newRegion);
-                                                    animateActiveMap(newRegion, 500);
-                                                    setSelectedMarker(item);
-                                                    saveRecentPlace(item);
-                                                    setMapSearchText('');
-                                                    setMapSearchResults([]);
-                                                }}
-                                            >
-                                                <Text style={{ fontSize: fs.base, fontWeight: '500', color: '#18181B' }} numberOfLines={1}>{item.name}</Text>
-                                                <Text style={{ fontSize: fs.sm, color: '#71717A', marginTop: 2 }} numberOfLines={1}>{item.address}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                </View>
-                            )}
-                        </View>
-
                         {/* 등기 잔액 뱃지 */}
                         {tilkoBalance !== null && (
                             <TouchableOpacity
-                                onPress={() => fetchTilkoBalance().then(bal => { if (bal !== null) setTilkoBalance(bal); })}
+                                onPress={() => fetchTilkoBalanceFromDB().then(bal => { if (bal !== null) setTilkoBalance(bal); })}
                                 style={{
                                     position: 'absolute', bottom: elderlyMode ? 168 : 160, right: 12, zIndex: 20,
                                     backgroundColor: tilkoBalance < 5 ? '#DC2626' : '#18181B',
@@ -6883,8 +7145,8 @@ function AppContent() {
 
             {renderContent()}
 
-            {/* 하단 탭바 (3탭) - regionSelect 시 숨김 */}
-            {currentTab !== 'regionSelect' && <View style={[styles.floatingMenu, elderlyMode && { height: 72, bottom: 40 }]}>
+            {/* 하단 탭바 (3탭) - regionSelect/placeSearch 시 숨김 */}
+            {currentTab !== 'regionSelect' && currentTab !== 'placeSearch' && <View style={[styles.floatingMenu, elderlyMode && { height: 72, bottom: 40 }]}>
                 {([
                     { id: 'map',  label: '지도',  a11y: '지도 탭' },
                     { id: 'home', label: '홈',    a11y: '홈 탭' },
@@ -7141,7 +7403,7 @@ const styles = StyleSheet.create({
     gpsButtonText: { fontSize: 11, color: '#FAFAFA', fontWeight: '600', letterSpacing: -0.3 },
     mapTypeContainer: {
         position: 'absolute',
-        top: 62,
+        top: 16,
         left: '50%',
         transform: [{ translateX: -90 }],
         flexDirection: 'row',

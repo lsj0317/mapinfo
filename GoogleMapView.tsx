@@ -34,12 +34,63 @@ interface Props {
     selectedMarker?: { latitude: number; longitude: number } | null;
     markers?: MapMarkerItem[];
     userLocation?: { latitude: number; longitude: number } | null;
+    heading?: number | null;
     onReady?: () => void;
     onLoadProgress?: (stage: 'sdkLoaded' | 'mapReady') => void;
 }
 
 // latitudeDelta < 0.04 ≈ zoom 14+ (지적도 표시 기준)
 const CADASTRAL_MIN_LAT_DELTA = 0.04;
+
+// 사용자 위치 나침반 마커
+const CompassMarker = ({ heading }: { heading: number | null }) => {
+    const hasHeading = heading !== null && heading !== undefined && heading >= 0;
+    return (
+        <View style={{ width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }}>
+            {/* 바깥 링 */}
+            <View style={{
+                position: 'absolute',
+                width: 60, height: 60,
+                borderRadius: 30,
+                borderWidth: 1.5,
+                borderColor: 'rgba(25,118,210,0.45)',
+                backgroundColor: 'rgba(25,118,210,0.07)',
+            }} />
+            {/* 북 */}
+            <Text style={{ position: 'absolute', top: 2, left: '50%', marginLeft: -7, fontSize: 9, fontWeight: '800', color: '#D32F2F', width: 14, textAlign: 'center' }}>북</Text>
+            {/* 남 */}
+            <Text style={{ position: 'absolute', bottom: 2, left: '50%', marginLeft: -7, fontSize: 9, fontWeight: '700', color: '#1976D2', width: 14, textAlign: 'center' }}>남</Text>
+            {/* 서 */}
+            <Text style={{ position: 'absolute', left: 2, top: '50%', marginTop: -7, fontSize: 9, fontWeight: '700', color: '#1976D2', width: 14, textAlign: 'center' }}>서</Text>
+            {/* 동 */}
+            <Text style={{ position: 'absolute', right: 2, top: '50%', marginTop: -7, fontSize: 9, fontWeight: '700', color: '#1976D2', width: 14, textAlign: 'center' }}>동</Text>
+            {/* 방향 화살표 (heading 기준 회전) */}
+            {hasHeading && (
+                <View style={{
+                    position: 'absolute',
+                    width: 76, height: 76,
+                    alignItems: 'center',
+                    justifyContent: 'flex-start',
+                    transform: [{ rotate: `${heading}deg` }],
+                }}>
+                    <View style={{
+                        marginTop: 8,
+                        width: 0, height: 0,
+                        borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 15,
+                        borderLeftColor: 'transparent', borderRightColor: 'transparent',
+                        borderBottomColor: '#1976D2',
+                    }} />
+                </View>
+            )}
+            {/* 중심 원점 */}
+            <View style={{
+                width: 14, height: 14, borderRadius: 7,
+                backgroundColor: '#1976D2',
+                borderWidth: 2, borderColor: '#fff',
+            }} />
+        </View>
+    );
+};
 
 const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
     const mapRef = useRef<MapView>(null);
@@ -72,7 +123,7 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
                 props.onLoadProgress?.('mapReady');
                 props.onReady?.();
             }}
-            showsUserLocation={true}
+            showsUserLocation={false}
             showsMyLocationButton={false}
         >
             {/* VWorld 지적도 WMS 오버레이 - zoom 14+ 에서만 표시 */}
@@ -112,15 +163,14 @@ const GoogleMapView = forwardRef<GoogleMapHandle, Props>((props, ref) => {
                 />
             )}
 
-            {/* 커스텀 사용자 위치 마커 */}
+            {/* 사용자 위치 나침반 마커 */}
             {props.userLocation && (
                 <Marker
                     coordinate={props.userLocation}
                     anchor={{ x: 0.5, y: 0.5 }}
+                    tracksViewChanges={props.heading !== null && props.heading !== undefined}
                 >
-                    <View style={{ backgroundColor: '#18181B', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 4, borderWidth: 1.5, borderColor: '#FAFAFA' }}>
-                        <Text style={{ color: '#FAFAFA', fontSize: 11, fontWeight: '600' }}>내위치</Text>
-                    </View>
+                    <CompassMarker heading={props.heading ?? null} />
                 </Marker>
             )}
         </MapView>
