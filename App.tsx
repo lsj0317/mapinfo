@@ -311,11 +311,7 @@ type MapType = 'standard' | 'cadastral' | 'satellite';
 // 영업 대상 유형 필터 (전체/공단/민간주택)
 type SalesTargetFilter = 'all' | 'industrial' | 'residential';
 
-const SALES_TARGET_LABELS: Record<SalesTargetFilter, string> = {
-    all: '전체',
-    industrial: '공단',
-    residential: '민간주택',
-};
+
 
 // purpose 필드로 유형을 추론하는 키워드 (target_type이 null인 기존 데이터 대응)
 const INDUSTRIAL_KEYWORDS = ['공장', '공업', '창고', '물류', '산업', '제조', '작업'];
@@ -1659,22 +1655,6 @@ const filterStyles = StyleSheet.create({
 });
 
 // ===== 클러스터 마커 컴포넌트 =====
-
-const clusterStyles = StyleSheet.create({
-    bubble: {
-        borderWidth: 2,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 3,
-        elevation: 5,
-    },
-    inner: { justifyContent: 'center', alignItems: 'center' },
-    count: { color: '#fff', fontWeight: '800' },
-});
 
 // ===== 사진 섹션 컴포넌트 (PropertyDetailModal 내부) =====
 
