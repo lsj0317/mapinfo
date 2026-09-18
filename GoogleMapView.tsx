@@ -1,5 +1,5 @@
-import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { View, Text } from 'react-native';
+import React, { forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
+import { View, Text, Animated, Easing } from 'react-native';
 import MapView, { Marker, WMSTile, PROVIDER_GOOGLE } from 'react-native-maps';
 
 export interface MapRegion {
@@ -45,6 +45,26 @@ const CADASTRAL_MIN_LAT_DELTA = 0.04;
 // 사용자 위치 나침반 마커
 const CompassMarker = ({ heading }: { heading: number | null }) => {
     const hasHeading = heading !== null && heading !== undefined && heading >= 0;
+    // 부드러운 회전을 위한 내부 Animated.Value
+    const animRotation = useRef(new Animated.Value(0)).current;
+    const currentRotRef = useRef(0);
+
+    useEffect(() => {
+        if (!hasHeading || heading === null) return;
+        // 최단경로 회전 계산
+        let diff = heading - currentRotRef.current;
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        const next = currentRotRef.current + diff;
+        currentRotRef.current = next;
+        Animated.timing(animRotation, {
+            toValue: next,
+            duration: 350,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+        }).start();
+    }, [heading]);
+
     return (
         <View style={{ width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }}>
             {/* 바깥 링 */}
@@ -64,14 +84,14 @@ const CompassMarker = ({ heading }: { heading: number | null }) => {
             <Text style={{ position: 'absolute', left: 2, top: '50%', marginTop: -7, fontSize: 9, fontWeight: '700', color: '#1976D2', width: 14, textAlign: 'center' }}>서</Text>
             {/* 동 */}
             <Text style={{ position: 'absolute', right: 2, top: '50%', marginTop: -7, fontSize: 9, fontWeight: '700', color: '#1976D2', width: 14, textAlign: 'center' }}>동</Text>
-            {/* 방향 화살표 (heading 기준 회전) */}
+            {/* 방향 화살표 (부드러운 Animated 회전) */}
             {hasHeading && (
-                <View style={{
+                <Animated.View style={{
                     position: 'absolute',
                     width: 76, height: 76,
                     alignItems: 'center',
                     justifyContent: 'flex-start',
-                    transform: [{ rotate: `${heading}deg` }],
+                    transform: [{ rotate: animRotation.interpolate({ inputRange: [-7200, 7200], outputRange: ['-7200deg', '7200deg'] }) }],
                 }}>
                     <View style={{
                         marginTop: 8,
@@ -80,7 +100,7 @@ const CompassMarker = ({ heading }: { heading: number | null }) => {
                         borderLeftColor: 'transparent', borderRightColor: 'transparent',
                         borderBottomColor: '#1976D2',
                     }} />
-                </View>
+                </Animated.View>
             )}
             {/* 중심 원점 */}
             <View style={{
